@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:score_tracker/l10n/app_localizations.dart';
 import 'package:score_tracker/share_icon_icons.dart';
-//import 'package:share_plus/share_plus.dart';
-// import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../styles.dart';
 
@@ -25,11 +25,11 @@ class _ShareAppBtnState extends State<ShareAppBtn> {
   void share(BuildContext context) async {
     final RenderBox? box = context.findRenderObject() as RenderBox;
 
-    // await Share.share(
-    //   "${AppLocalizations.of(context)!.download}\n\n\n\n"
-    //   "https://play.google.com/store/apps/details?id=ywmluclt.score_tracker",
-    //   sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size,
-    // );
+    await Share.share(
+      "${AppLocalizations.of(context)!.download}\n\n\n\n"
+      "https://play.google.com/store/apps/details?id=ywmluclt.score_tracker",
+      sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size,
+    );
   }
 
   @override
@@ -101,11 +101,11 @@ class RateFeedBackBtn extends StatelessWidget {
     final url = Uri.parse(
       'https://play.google.com/store/apps/details?id=$packageName',
     );
-    // if (await canLaunchUrl(url)) {
-    //   await launchUrl(url);
-    // } else {
-    //   throw 'Could not launch app store page';
-    // }
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else {
+      throw 'Could not launch app store page';
+    }
   }
 }
 
@@ -122,7 +122,7 @@ class PolicyBtn extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: backgroundButtonColorBlue,
           ),
-          onPressed: () => (), // _launchURL,
+          onPressed: () => _launchURL(),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -140,7 +140,7 @@ class PolicyBtn extends StatelessWidget {
   }
 
   final policyUrl = Uri.parse('https://ywmluclt.github.io/scoretracker/');
-  // void _launchURL() async => await canLaunchUrl(policyUrl)
-  //     ? await launchUrl(policyUrl)
-  //     : throw 'Could not launch $policyUrl';
+  void _launchURL() async => await canLaunchUrl(policyUrl)
+      ? await launchUrl(policyUrl)
+      : throw 'Could not launch $policyUrl';
 }
