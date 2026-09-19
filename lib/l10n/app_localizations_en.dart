@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -37,6 +38,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get score_board => 'SCORE BOARD';
+
+  @override
+  String get edit_score_help_title => 'Edit scores';
+
+  @override
+  String get edit_score_hint => 'Tap any score to edit it.';
+
+  @override
+  String get retry => 'TRY AGAIN';
 
   @override
   String get add_score => 'ADD SCORE';

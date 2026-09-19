@@ -10,6 +10,7 @@ import 'package:score_tracker/models/game.dart';
 import 'package:score_tracker/models/game_state_model.dart';
 import 'package:score_tracker/models/player.dart';
 import 'package:score_tracker/models/player_state_model.dart';
+import 'package:score_tracker/navigation.dart';
 import 'package:score_tracker/screens/add_player.dart';
 import 'package:score_tracker/screens/game_board.dart';
 import 'package:score_tracker/widgets/add_players_widget.dart';
@@ -83,11 +84,33 @@ class _SelectPlayerState extends State<SelectPlayer> {
           context: context,
           builder: (dialogContext) => AlertDialog(
             backgroundColor: backgroundHeaderColor,
-            title: Text(t.delete, style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText, fontWeight: FontWeight.w700)),
-            content: Text(t.delete_confirm, style: const TextStyle(color: foregroundColor, fontFamily: fontFamilySFProText)),
+            title: Text(
+              t.delete,
+              style: const TextStyle(
+                color: foregroundButtonColor,
+                fontFamily: fontFamilySFProText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            content: Text(
+              t.delete_confirm,
+              style: const TextStyle(
+                color: foregroundColor,
+                fontFamily: fontFamilySFProText,
+              ),
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(t.cancel)),
-              FilledButton(onPressed: () => Navigator.pop(dialogContext, true), style: FilledButton.styleFrom(backgroundColor: Colors.redAccent), child: Text(t.delete)),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(t.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                ),
+                child: Text(t.delete),
+              ),
             ],
           ),
         ) ??
@@ -109,7 +132,7 @@ class _SelectPlayerState extends State<SelectPlayer> {
       if (!mounted || game == null) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => GameBoard(game: game, playerIds: ids)),
+        smoothPageRoute(GameBoard(game: game, playerIds: ids)),
       );
     } finally {
       if (mounted) setState(() => _isStarting = false);
@@ -130,73 +153,105 @@ class _SelectPlayerState extends State<SelectPlayer> {
       resizeToAvoidBottomInset: true,
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: Text(t.select_player_title, style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText, fontWeight: FontWeight.w700, fontSize: 18)),
+        title: Text(
+          t.select_player_title,
+          style: const TextStyle(
+            color: foregroundButtonColor,
+            fontFamily: fontFamilySFProText,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
         backgroundColor: backgroundColor,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
             tooltip: t.add_player,
-            icon: const Icon(Icons.person_add_alt_1_rounded, color: foregroundButtonColor),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddPlayer())),
+            icon: const Icon(
+              Icons.person_add_alt_1_rounded,
+              color: foregroundButtonColor,
+            ),
+            onPressed: () =>
+                Navigator.push(context, smoothPageRoute(AddPlayer())),
           ),
           const SizedBox(width: 4),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: backgroundButtonColorBlue))
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: backgroundButtonColorBlue,
+              ),
+            )
           : players.isEmpty
-              ? const AddPlayersWidget()
-              : RefreshIndicator(
-                  color: backgroundButtonColorBlue,
-                  onRefresh: _loadPlayers,
-                  child: CustomScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      SliverToBoxAdapter(child: _SelectionHeader(selectedPlayers: _selectedPlayers, hint: t.select_2to6player)),
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 160),
-                        sliver: SliverList.separated(
-                          itemCount: players.length,
-                          itemBuilder: (context, index) {
-                            final player = players[index];
-                            final selected = _selectedPlayers.contains(player);
-                            final unavailable = !selected && _selectedPlayers.length == 6;
-                            return Dismissible(
-                              key: ValueKey(player.id),
-                              direction: DismissDirection.endToStart,
-                              confirmDismiss: (_) => _confirmDelete(player),
-                              onDismissed: (_) {
-                                _selectedPlayers.remove(player);
-                                context.read<PlayerStateModel>().deletePlayer(player.id!);
-                              },
-                              background: Container(
-                                alignment: Alignment.centerRight,
-                                padding: const EdgeInsets.only(right: 24),
-                                decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(16)),
-                                child: const Icon(Icons.delete_outline_rounded, color: foregroundButtonColor),
-                              ),
-                              child: _PlayerTile(
-                                player: player,
-                                selected: selected,
-                                unavailable: unavailable,
-                                onTap: () => _togglePlayer(player),
-                              ),
+          ? const AddPlayersWidget()
+          : RefreshIndicator(
+              color: backgroundButtonColorBlue,
+              onRefresh: _loadPlayers,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: _SelectionHeader(
+                      selectedPlayers: _selectedPlayers,
+                      hint: t.select_2to6player,
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 160),
+                    sliver: SliverList.separated(
+                      itemCount: players.length,
+                      itemBuilder: (context, index) {
+                        final player = players[index];
+                        final selected = _selectedPlayers.contains(player);
+                        final unavailable =
+                            !selected && _selectedPlayers.length == 6;
+                        return Dismissible(
+                          key: ValueKey(player.id),
+                          direction: DismissDirection.endToStart,
+                          confirmDismiss: (_) => _confirmDelete(player),
+                          onDismissed: (_) {
+                            _selectedPlayers.remove(player);
+                            context.read<PlayerStateModel>().deletePlayer(
+                              player.id!,
                             );
                           },
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        ),
-                      ),
-                    ],
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 24),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: foregroundButtonColor,
+                            ),
+                          ),
+                          child: _PlayerTile(
+                            player: player,
+                            selected: selected,
+                            unavailable: unavailable,
+                            onTap: () => _togglePlayer(player),
+                          ),
+                        );
+                      },
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    ),
                   ),
-                ),
-      bottomNavigationBar: players.isEmpty || _isLoading ? null : _StartPanel(
-        isReady: _selectedPlayers.length >= 2,
-        isStarting: _isStarting,
-        label: t.let_start,
-        onStart: _startGame,
-        bannerAd: _bannerAd,
-      ),
+                ],
+              ),
+            ),
+      bottomNavigationBar: players.isEmpty || _isLoading
+          ? null
+          : _StartPanel(
+              isReady: _selectedPlayers.length >= 2,
+              isStarting: _isStarting,
+              label: t.let_start,
+              onStart: _startGame,
+              bannerAd: _bannerAd,
+            ),
     );
   }
 }
@@ -213,14 +268,23 @@ class _SelectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       child: Container(
         padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(color: backgroundHeaderColor, borderRadius: BorderRadius.circular(20)),
+        decoration: BoxDecoration(
+          color: backgroundHeaderColor,
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: Row(
           children: [
             Container(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(color: backgroundButtonColorBlue.withValues(alpha: .22), borderRadius: BorderRadius.circular(14)),
-              child: const Icon(Icons.groups_rounded, color: backgroundButtonColorBlue),
+              decoration: BoxDecoration(
+                color: backgroundButtonColorBlue.withValues(alpha: .22),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.groups_rounded,
+                color: backgroundButtonColorBlue,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -228,11 +292,24 @@ class _SelectionHeader extends StatelessWidget {
                 names.isEmpty ? hint : names,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText, fontSize: 16, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  color: foregroundButtonColor,
+                  fontFamily: fontFamilySFProText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             const SizedBox(width: 12),
-            Text('${selectedPlayers.length}/6', style: const TextStyle(color: backgroundButtonColorBlue, fontFamily: fontFamilySFProText, fontSize: 18, fontWeight: FontWeight.w700)),
+            Text(
+              '${selectedPlayers.length}/6',
+              style: const TextStyle(
+                color: backgroundButtonColorBlue,
+                fontFamily: fontFamilySFProText,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),
@@ -241,7 +318,12 @@ class _SelectionHeader extends StatelessWidget {
 }
 
 class _PlayerTile extends StatelessWidget {
-  const _PlayerTile({required this.player, required this.selected, required this.unavailable, required this.onTap});
+  const _PlayerTile({
+    required this.player,
+    required this.selected,
+    required this.unavailable,
+    required this.onTap,
+  });
   final Player player;
   final bool selected;
   final bool unavailable;
@@ -249,9 +331,13 @@ class _PlayerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initials = player.name.trim().isEmpty ? '?' : player.name.trim()[0].toUpperCase();
+    final initials = player.name.trim().isEmpty
+        ? '?'
+        : player.name.trim()[0].toUpperCase();
     return Material(
-      color: selected ? backgroundButtonColorBlue.withValues(alpha: .18) : backgroundHeaderColor,
+      color: selected
+          ? backgroundButtonColorBlue.withValues(alpha: .18)
+          : backgroundHeaderColor,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: unavailable ? null : onTap,
@@ -262,15 +348,54 @@ class _PlayerTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               children: [
-                CircleAvatar(backgroundColor: selected ? backgroundButtonColorBlue : foregroundHintColor, child: Text(initials, style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText, fontWeight: FontWeight.w700))),
+                CircleAvatar(
+                  backgroundColor: selected
+                      ? backgroundButtonColorBlue
+                      : foregroundHintColor,
+                  child: Text(
+                    initials,
+                    style: const TextStyle(
+                      color: foregroundButtonColor,
+                      fontFamily: fontFamilySFProText,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 14),
-                Expanded(child: Text(player.name, style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText, fontSize: 17, fontWeight: FontWeight.w600))),
+                Expanded(
+                  child: Text(
+                    player.name,
+                    style: const TextStyle(
+                      color: foregroundButtonColor,
+                      fontFamily: fontFamilySFProText,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 160),
                   width: 26,
                   height: 26,
-                  decoration: BoxDecoration(color: selected ? backgroundButtonColorBlue : Colors.transparent, border: Border.all(color: selected ? backgroundButtonColorBlue : foregroundHintColor, width: 1.5), borderRadius: BorderRadius.circular(8)),
-                  child: selected ? const Icon(Icons.check_rounded, size: 18, color: foregroundButtonColor) : null,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? backgroundButtonColorBlue
+                        : Colors.transparent,
+                    border: Border.all(
+                      color: selected
+                          ? backgroundButtonColorBlue
+                          : foregroundHintColor,
+                      width: 1.5,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: selected
+                      ? const Icon(
+                          Icons.check_rounded,
+                          size: 18,
+                          color: foregroundButtonColor,
+                        )
+                      : null,
                 ),
               ],
             ),
@@ -282,7 +407,13 @@ class _PlayerTile extends StatelessWidget {
 }
 
 class _StartPanel extends StatelessWidget {
-  const _StartPanel({required this.isReady, required this.isStarting, required this.label, required this.onStart, required this.bannerAd});
+  const _StartPanel({
+    required this.isReady,
+    required this.isStarting,
+    required this.label,
+    required this.onStart,
+    required this.bannerAd,
+  });
   final bool isReady;
   final bool isStarting;
   final String label;
@@ -304,15 +435,47 @@ class _StartPanel extends StatelessWidget {
               height: 54,
               child: FilledButton.icon(
                 onPressed: isReady && !isStarting ? onStart : null,
-                style: FilledButton.styleFrom(backgroundColor: backgroundButtonColorBlue, disabledBackgroundColor: backgroundHeaderColor, foregroundColor: foregroundButtonColor, disabledForegroundColor: foregroundHintColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                icon: isStarting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: foregroundButtonColor)) : const Icon(Icons.play_arrow_rounded),
-                label: Text(label, style: const TextStyle(fontFamily: fontFamilySFProText, fontWeight: FontWeight.w700, fontSize: 17)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: backgroundButtonColorBlue,
+                  disabledBackgroundColor: backgroundHeaderColor,
+                  foregroundColor: foregroundButtonColor,
+                  disabledForegroundColor: foregroundHintColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: isStarting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: foregroundButtonColor,
+                        ),
+                      )
+                    : const Icon(Icons.play_arrow_rounded),
+                label: Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: fontFamilySFProText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 8),
             SizedBox(
               height: AdSize.banner.height.toDouble(),
-              child: bannerAd == null ? null : Center(child: SizedBox(width: bannerAd!.size.width.toDouble(), height: bannerAd!.size.height.toDouble(), child: AdWidget(ad: bannerAd!))),
+              child: bannerAd == null
+                  ? null
+                  : Center(
+                      child: SizedBox(
+                        width: bannerAd!.size.width.toDouble(),
+                        height: bannerAd!.size.height.toDouble(),
+                        child: AdWidget(ad: bannerAd!),
+                      ),
+                    ),
             ),
           ],
         ),

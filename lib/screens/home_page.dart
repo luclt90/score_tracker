@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:score_tracker/l10n/app_localizations.dart';
 import 'package:score_tracker/models/game_detail_state_model.dart';
 import 'package:score_tracker/models/game_state_model.dart';
+import 'package:score_tracker/navigation.dart';
 import 'package:score_tracker/screens/select_player.dart';
 import 'package:score_tracker/widgets/game_card_item.dart';
 import 'package:score_tracker/widgets/share_app.dart';
@@ -37,10 +38,8 @@ class _HomePageState extends State<HomePage> {
     if (mounted) setState(() => _isLoading = false);
   }
 
-  void _createGame() => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => SelectPlayer()),
-  );
+  void _createGame() =>
+      Navigator.push(context, smoothPageRoute(const SelectPlayer()));
   @override
   Widget build(BuildContext context) {
     final games = context.watch<GameStateModel>().availableGames;
@@ -110,8 +109,6 @@ class _HomePageState extends State<HomePage> {
                       child: _EmptyHistory(
                         title: t.empty_list,
                         message: t.alway_beside,
-                        actionLabel: t.create_new,
-                        onCreate: _createGame,
                       ),
                     )
                   else
@@ -146,12 +143,15 @@ class _HomePageState extends State<HomePage> {
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
+            margin: EdgeInsets.zero,
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            curve: Curves.easeOut,
             decoration: const BoxDecoration(color: backgroundColor),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const CircleAvatar(
-                  radius: 28,
+                  radius: 24,
                   backgroundColor: backgroundButtonColorBlue,
                   child: Icon(
                     Icons.scoreboard_outlined,
@@ -159,19 +159,20 @@ class _HomePageState extends State<HomePage> {
                     size: 30,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Text(
                   AppLocalizations.of(context)!.app_name,
                   style: const TextStyle(
                     color: foregroundButtonColor,
                     fontFamily: fontFamilySFProText,
                     fontWeight: FontWeight.w700,
-                    fontSize: 21,
+                    fontSize: 19,
                   ),
                 ),
               ],
             ),
           ),
+          const Divider(height: 1, color: foregroundHintColor),
           ShareAppBtn(),
           RateFeedBackBtn(),
           PolicyBtn(),
@@ -236,14 +237,8 @@ class _HistoryHeader extends StatelessWidget {
 }
 
 class _EmptyHistory extends StatelessWidget {
-  const _EmptyHistory({
-    required this.title,
-    required this.message,
-    required this.actionLabel,
-    required this.onCreate,
-  });
-  final String title, message, actionLabel;
-  final VoidCallback onCreate;
+  const _EmptyHistory({required this.title, required this.message});
+  final String title, message;
   @override
   Widget build(BuildContext context) => Center(
     child: Padding(
@@ -281,17 +276,6 @@ class _EmptyHistory extends StatelessWidget {
               color: foregroundHintColor,
               fontFamily: fontFamilySFProText,
               fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: onCreate,
-            icon: const Icon(Icons.add_rounded),
-            label: Text(actionLabel),
-            style: FilledButton.styleFrom(
-              backgroundColor: backgroundButtonColorBlue,
-              foregroundColor: foregroundButtonColor,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             ),
           ),
         ],

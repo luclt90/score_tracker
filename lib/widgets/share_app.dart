@@ -6,12 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../styles.dart';
 
-const style = TextStyle(
-  fontSize: 16.0,
-  fontFamily: "SF Pro Display",
-  color: foregroundColor,
-);
-
 class ShareAppBtn extends StatefulWidget {
   @override
   _ShareAppBtnState createState() => _ShareAppBtnState();
@@ -34,32 +28,18 @@ class _ShareAppBtnState extends State<ShareAppBtn> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: SizedBox(
-        width: MediaQuery.of(context).size.width * 0.5,
-        height: MediaQuery.of(context).size.height * 0.055,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: backgroundButtonColorBlue,
-          ),
-          onPressed: () => share(context),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.share,
-                size: MediaQuery.of(context).size.height * 0.025,
-                color: const Color(0xffcccccc),
-              ),
-              Text(
-                AppLocalizations.of(context)!.share_application,
-                style: style,
-              ),
-            ],
-          ),
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      leading: const Icon(Icons.share_rounded, color: foregroundColor),
+      title: Text(
+        AppLocalizations.of(context)!.share_application.trim(),
+        style: const TextStyle(
+          color: foregroundColor,
+          fontFamily: fontFamilySFProText,
+          fontSize: 16,
         ),
       ),
+      onTap: () => share(context),
     );
   }
 }
@@ -67,32 +47,18 @@ class _ShareAppBtnState extends State<ShareAppBtn> {
 class RateFeedBackBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: SizedBox(
-        width: MediaQuery.of(context).size.width * 0.5,
-        height: MediaQuery.of(context).size.height * 0.055,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: backgroundButtonColorBlue,
-          ),
-          onPressed: () => launchAppStorePage(),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                ShareIcon.google_play,
-                size: MediaQuery.of(context).size.height * 0.025,
-                color: const Color(0xffcccccc),
-              ),
-              Text(
-                AppLocalizations.of(context)!.vote_application,
-                style: style,
-              ),
-            ],
-          ),
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      leading: const Icon(ShareIcon.google_play, color: foregroundColor),
+      title: Text(
+        AppLocalizations.of(context)!.vote_application.trim(),
+        style: const TextStyle(
+          color: foregroundColor,
+          fontFamily: fontFamilySFProText,
+          fontSize: 16,
         ),
       ),
+      onTap: launchAppStorePage,
     );
   }
 
@@ -113,29 +79,18 @@ class RateFeedBackBtn extends StatelessWidget {
 class PolicyBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: SizedBox(
-        width: MediaQuery.of(context).size.width * 0.5,
-        height: MediaQuery.of(context).size.height * 0.055,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: backgroundButtonColorBlue,
-          ),
-          onPressed: () => _launchURL(),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.policy,
-                size: MediaQuery.of(context).size.height * 0.025,
-                color: const Color(0xffcccccc),
-              ),
-              Text(AppLocalizations.of(context)!.privacy_policy, style: style),
-            ],
-          ),
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      leading: const Icon(Icons.policy_rounded, color: foregroundColor),
+      title: Text(
+        AppLocalizations.of(context)!.privacy_policy.trim(),
+        style: const TextStyle(
+          color: foregroundColor,
+          fontFamily: fontFamilySFProText,
+          fontSize: 16,
         ),
       ),
+      onTap: _launchURL,
     );
   }
 

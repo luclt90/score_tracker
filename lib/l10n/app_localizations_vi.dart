@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -37,6 +38,15 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get score_board => 'BẢNG ĐIỂM';
+
+  @override
+  String get edit_score_help_title => 'Sửa điểm';
+
+  @override
+  String get edit_score_hint => 'Chạm vào điểm bất kỳ để chỉnh sửa.';
+
+  @override
+  String get retry => 'THỬ LẠI';
 
   @override
   String get add_score => 'THÊM ĐIỂM';

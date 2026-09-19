@@ -6,6 +6,7 @@ import 'package:score_tracker/models/game.dart';
 import 'package:score_tracker/models/game_state_model.dart';
 import 'package:score_tracker/models/player.dart';
 import 'package:score_tracker/models/player_state_model.dart';
+import 'package:score_tracker/navigation.dart';
 import 'package:score_tracker/screens/game_board.dart';
 
 import '../styles.dart';
@@ -40,8 +41,8 @@ class _GameCardItemState extends State<GameCardItem> {
 
   void _openGame(List<Player> players) => Navigator.push(
     context,
-    MaterialPageRoute(
-      builder: (_) => GameBoard(
+    smoothPageRoute(
+      GameBoard(
         game: widget.game,
         playerIds: players.map((player) => player.id!).toList(),
       ),
@@ -49,24 +50,27 @@ class _GameCardItemState extends State<GameCardItem> {
   );
   Future<void> _createRematch(List<Player> players) async {
     final model = context.read<GameStateModel>();
+    final createAt = DateFormat('yyyy-MM-dd H:m').format(DateTime.now());
     final id = await model.addGame(
-      Game(
-        numberOfPlayers: players.length,
-        createAt: DateFormat('yyyy-MM-dd H:m').format(DateTime.now()),
-      ),
+      Game(numberOfPlayers: players.length, createAt: createAt),
       players.map((player) => player.id!).toList(),
+      refreshGames: false,
     );
-    final game = await model.getGameWithId(id);
-    if (!mounted || game == null) return;
-    Navigator.push(
+    if (!mounted) return;
+    await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => GameBoard(
-          game: game,
+      smoothPageRoute(
+        GameBoard(
+          game: Game(
+            id: id,
+            numberOfPlayers: players.length,
+            createAt: createAt,
+          ),
           playerIds: players.map((player) => player.id!).toList(),
         ),
       ),
     );
+    if (mounted) await model.loadGames();
   }
 
   Future<void> _confirmDelete() async {

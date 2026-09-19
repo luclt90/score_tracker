@@ -46,4 +46,8 @@ class GameRepository {
       int index, int gameId, List<PlayerScore> playerScores) {
     return DatabaseProvider.db.addScoresToGame(index, gameId, playerScores);
   }
+
+  static Future<int> updateGameDetailScore(int detailId, int score) {
+    return DatabaseProvider.db.updateGameDetailScore(detailId, score);
+  }
 }

@@ -25,12 +25,14 @@ class GameStateModel extends ChangeNotifier {
     Game game,
     List<int> playerIds, {
     bool isNotify = true,
+    bool refreshGames = true,
   }) async {
-    // Wait for SQLite to finish writing before reading the history again.
-    // Previously these operations raced, so HomePage could receive the old list
-    // until the user manually refreshed it.
     final id = await GameRepository.addGame(game, playerIds);
-    await loadGames(isNotify: isNotify);
+    if (refreshGames) {
+      await loadGames(isNotify: isNotify);
+    } else if (isNotify) {
+      notifyListeners();
+    }
     return id;
   }
 

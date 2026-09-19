@@ -10,6 +10,7 @@ import 'package:score_tracker/models/game.dart';
 import 'package:score_tracker/models/game_state_model.dart';
 import 'package:score_tracker/models/player.dart';
 import 'package:score_tracker/models/player_state_model.dart';
+import 'package:score_tracker/navigation.dart';
 import 'package:score_tracker/screens/game_board.dart';
 
 import '../ad_manager.dart';
@@ -86,20 +87,27 @@ class _AddPlayersWidgetState extends State<AddPlayersWidget> {
   }
 
   bool get _canStart =>
-      _controllers.length >= 2 && _controllers.every((item) => item.text.trim().isNotEmpty);
+      _controllers.length >= 2 &&
+      _controllers.every((item) => item.text.trim().isNotEmpty);
 
   Future<void> _startGame() async {
     if (!_canStart || _isStarting) return;
     setState(() => _isStarting = true);
     final now = DateFormat('yyyy-MM-dd H:m').format(DateTime.now());
     final players = _controllers
-        .map((controller) => Player(name: controller.text.trim(), memo: '', createAt: now))
+        .map(
+          (controller) =>
+              Player(name: controller.text.trim(), memo: '', createAt: now),
+        )
         .toList();
 
     try {
       final playerModel = context.read<PlayerStateModel>();
       final gameModel = context.read<GameStateModel>();
-      final playerIds = await playerModel.insertPlayers(players, isNotify: false);
+      final playerIds = await playerModel.insertPlayers(
+        players,
+        isNotify: false,
+      );
       final gameId = await gameModel.addGame(
         Game(numberOfPlayers: players.length, createAt: now),
         playerIds,
@@ -108,9 +116,7 @@ class _AddPlayersWidgetState extends State<AddPlayersWidget> {
       if (!mounted || game == null) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => GameBoard(game: game, playerIds: playerIds),
-        ),
+        smoothPageRoute(GameBoard(game: game, playerIds: playerIds)),
       );
     } finally {
       if (mounted) setState(() => _isStarting = false);
@@ -172,8 +178,15 @@ class _AddPlayersWidgetState extends State<AddPlayersWidget> {
                     fontFamily: fontFamilySFProText,
                     fontWeight: FontWeight.w700,
                   ),
-                  side: BorderSide(color: selected ? backgroundButtonColorBlue : foregroundHintColor),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  side: BorderSide(
+                    color: selected
+                        ? backgroundButtonColorBlue
+                        : foregroundHintColor,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                 );
               }).toList(),
             ),
@@ -209,13 +222,18 @@ class _AddPlayersWidgetState extends State<AddPlayersWidget> {
                   disabledBackgroundColor: backgroundHeaderColor,
                   foregroundColor: foregroundButtonColor,
                   disabledForegroundColor: foregroundHintColor,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 icon: _isStarting
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: foregroundButtonColor),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: foregroundButtonColor,
+                        ),
                       )
                     : const Icon(Icons.play_arrow_rounded),
                 label: Text(
@@ -269,7 +287,10 @@ class _IntroCard extends StatelessWidget {
               color: backgroundButtonColorBlue.withValues(alpha: .22),
               borderRadius: BorderRadius.circular(15),
             ),
-            child: const Icon(Icons.group_add_outlined, color: backgroundButtonColorBlue),
+            child: const Icon(
+              Icons.group_add_outlined,
+              color: backgroundButtonColorBlue,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -290,7 +311,11 @@ class _IntroCard extends StatelessWidget {
 }
 
 class _PlayerNameField extends StatelessWidget {
-  const _PlayerNameField({required this.controller, required this.index, required this.hint});
+  const _PlayerNameField({
+    required this.controller,
+    required this.index,
+    required this.hint,
+  });
   final TextEditingController controller;
   final int index;
   final String hint;
@@ -301,24 +326,55 @@ class _PlayerNameField extends StatelessWidget {
       controller: controller,
       maxLength: 10,
       textCapitalization: TextCapitalization.words,
-      style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText),
+      style: const TextStyle(
+        color: foregroundButtonColor,
+        fontFamily: fontFamilySFProText,
+      ),
       decoration: InputDecoration(
         counterText: '',
         hintText: hint,
-        hintStyle: const TextStyle(color: foregroundHintColor, fontFamily: fontFamilySFProText),
+        hintStyle: const TextStyle(
+          color: foregroundHintColor,
+          fontFamily: fontFamilySFProText,
+        ),
         prefixIcon: Container(
           width: 38,
           alignment: Alignment.center,
           margin: const EdgeInsets.all(7),
-          decoration: const BoxDecoration(color: backgroundButtonColorBlue, shape: BoxShape.circle),
-          child: Text('$index', style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText, fontWeight: FontWeight.w700)),
+          decoration: const BoxDecoration(
+            color: backgroundButtonColorBlue,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            '$index',
+            style: const TextStyle(
+              color: foregroundButtonColor,
+              fontFamily: fontFamilySFProText,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
         filled: true,
         fillColor: backgroundHeaderColor,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: backgroundHeaderColor)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: backgroundButtonColorBlue, width: 1.5)),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 17,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: backgroundHeaderColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(
+            color: backgroundButtonColorBlue,
+            width: 1.5,
+          ),
+        ),
       ),
     );
   }

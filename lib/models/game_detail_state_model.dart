@@ -56,9 +56,21 @@ class GameDetailStateModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  addScoresToGame(int index, int gameId, List<PlayerScore> playerScores) {
-    GameRepository.addScoresToGame(index, gameId, playerScores).then((value) {
-      loadGameDetails(gameId);
-    });
+  Future<void> addScoresToGame(
+    int index,
+    int gameId,
+    List<PlayerScore> playerScores,
+  ) async {
+    await GameRepository.addScoresToGame(index, gameId, playerScores);
+    await loadGameDetails(gameId);
+  }
+
+  Future<void> updateGameDetailScore(
+    int detailId,
+    int score,
+    int gameId,
+  ) async {
+    await GameRepository.updateGameDetailScore(detailId, score);
+    await loadGameDetails(gameId);
   }
 }

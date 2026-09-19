@@ -17,12 +17,21 @@ class DatabaseProvider {
     'CREATE TABLE Player (id INTEGER primary key autoincrement, name TEXT NOT NULL UNIQUE, memo TEXT, createAt TEXT)',
     'CREATE TABLE Game (id INTEGER primary key autoincrement, numberOfPlayers INTEGER, createAt TEXT)',
     'CREATE TABLE GameDetail (id INTEGER primary key autoincrement, gameIndex INTERGER, score INTEGER, gameId INTEGER, playerId INTEGER, FOREIGN KEY(gameId) REFERENCES Game(id) on delete cascade, FOREIGN KEY(playerId) REFERENCES Player(id) on delete cascade)',
+    'ALTER TABLE GameDetail ADD COLUMN editedAt TEXT',
   ];
 
   Future<Database?> get database async {
-    if (_database != null) return _database;
-    _database = await _getDatabaseInstance();
+    _database ??= await _getDatabaseInstance();
+    await _ensureEditedAtColumn(_database!);
     return _database;
+  }
+
+  Future<void> _ensureEditedAtColumn(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(GameDetail)');
+    final hasEditedAt = columns.any((column) => column['name'] == 'editedAt');
+    if (!hasEditedAt) {
+      await db.execute('ALTER TABLE GameDetail ADD COLUMN editedAt TEXT');
+    }
   }
 
   static Future _onConfigure(Database db) async {
@@ -32,16 +41,21 @@ class DatabaseProvider {
   Future<Database> _getDatabaseInstance() async {
     var databasesPath = await getDatabasesPath();
     String path = join(databasesPath, "ScoreChecker.db");
-    return await openDatabase(path, version: migrationScripts.length + 1,
-        onCreate: (Database db, int version) async {
-      for (int i = 0; i <= migrationScripts.length - 1; i++) {
-        await db.execute(migrationScripts[i]);
-      }
-    }, onUpgrade: (db, oldVersion, newVersion) async {
-      for (var i = oldVersion - 1; i < newVersion - 1; i++) {
-        await db.execute(migrationScripts[i]);
-      }
-    }, onConfigure: _onConfigure);
+    return await openDatabase(
+      path,
+      version: migrationScripts.length + 1,
+      onCreate: (Database db, int version) async {
+        for (int i = 0; i <= migrationScripts.length - 1; i++) {
+          await db.execute(migrationScripts[i]);
+        }
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        for (var i = oldVersion - 1; i < newVersion - 1; i++) {
+          await db.execute(migrationScripts[i]);
+        }
+      },
+      onConfigure: _onConfigure,
+    );
   }
 
   // Future<int> addPlayerToDatabase(Player player) async {
@@ -121,8 +135,11 @@ class DatabaseProvider {
 
   Future<List<GameDetail>> getGameDetails(int gameId) async {
     final db = await database;
-    var response =
-        await db!.query("GameDetail", where: "gameId = ?", whereArgs: [gameId]);
+    var response = await db!.query(
+      "GameDetail",
+      where: "gameId = ?",
+      whereArgs: [gameId],
+    );
     List<GameDetail> list = response.map((c) => GameDetail.fromMap(c)).toList();
     return list;
   }
@@ -175,12 +192,15 @@ class DatabaseProvider {
   Future<List<Player>> getPlayersWithGameId(int gameId) async {
     final db = await database;
 
-    var response = await db!.rawQuery('''
+    var response = await db!.rawQuery(
+      '''
     SELECT Player.id, Player.name, Player.memo, Player.createAt
     FROM Player
     INNER JOIN GameDetail ON Player.id = GameDetail.playerId
     WHERE GameDetail.gameId = ? GROUP BY Player.id
-  ''', [gameId]);
+  ''',
+      [gameId],
+    );
 
     List<Player> list = response.map((c) => Player.fromMap(c)).toList();
     return list;
@@ -195,15 +215,22 @@ class DatabaseProvider {
 
   Future<int> addGameToDatabase(Game game, List<int> playerIds) async {
     final db = await database;
-    var id = await db!.insert("Game", game.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    var id = await db!.insert(
+      "Game",
+      game.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
 
-//
+    //
     final batch = db.batch();
 
     for (int i = 0; i < playerIds.length; i++) {
       final gameDetail = GameDetail(
-          gameIndex: 0, playerId: playerIds[i], gameId: id, score: 0);
+        gameIndex: 0,
+        playerId: playerIds[i],
+        gameId: id,
+        score: 0,
+      );
 
       batch.insert('GameDetail', gameDetail.toMap());
 
@@ -216,23 +243,50 @@ class DatabaseProvider {
   }
 
   Future<void> addScoresToGame(
-      int index, int gameId, List<PlayerScore> playerScores) async {
+    int index,
+    int gameId,
+    List<PlayerScore> playerScores,
+  ) async {
     final db = await database;
 
     final batch = db!.batch();
 
     for (int i = 0; i < playerScores.length; i++) {
       final gameDetail = GameDetail(
-          gameIndex: index,
-          playerId: playerScores[i].playerId,
-          gameId: gameId,
-          score: playerScores[i].score);
+        gameIndex: index,
+        playerId: playerScores[i].playerId,
+        gameId: gameId,
+        score: playerScores[i].score,
+      );
 
       batch.insert('GameDetail', gameDetail.toMap());
 
-      log('inserted to GameDetail, player:${playerScores[i].playerId}, score: ${playerScores[i].score}');
+      log(
+        'inserted to GameDetail, player:${playerScores[i].playerId}, score: ${playerScores[i].score}',
+      );
     }
 
     await batch.commit();
+  }
+
+  Future<int> updateGameDetailScore(int detailId, int score) async {
+    final db = await database;
+    final current = await db!.query(
+      'GameDetail',
+      columns: ['score'],
+      where: 'id = ?',
+      whereArgs: [detailId],
+      limit: 1,
+    );
+    if (current.isEmpty) return 0;
+
+    if (current.first['score'] == score) return 0;
+
+    return db.update(
+      'GameDetail',
+      {'score': score, 'editedAt': DateTime.now().toUtc().toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [detailId],
+    );
   }
 }
