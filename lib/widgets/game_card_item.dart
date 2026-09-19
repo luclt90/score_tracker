@@ -1,4 +1,3 @@
-import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -12,317 +11,230 @@ import 'package:score_tracker/screens/game_board.dart';
 import '../styles.dart';
 
 class GameCardItem extends StatefulWidget {
-  GameCardItem({required this.game, this.index = 0}) : super();
-
+  const GameCardItem({required this.game, required this.index, super.key});
   final Game game;
   final int index;
-
   @override
   State<GameCardItem> createState() => _GameCardItemState();
 }
 
 class _GameCardItemState extends State<GameCardItem> {
-  final navigatorKey = GlobalKey<NavigatorState>();
-  bool isLoading = true;
-  List<Player> players = [];
-
-  Future<List<Player>> getPlayersViaGameId(BuildContext context) async {
-    List<Player> players = [];
-    final playerModel = Provider.of<PlayerStateModel>(context, listen: false);
-
-    await playerModel
-        .getPlayersWithGameId(widget.game.id ?? 0)
-        .then((value) => players = value);
-
-    return players;
-  }
-
+  late Future<List<Player>> _playersFuture;
   @override
   void initState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      loadData();
-    });
-
     super.initState();
-  }
-
-  Future<void> loadData() async {
-    if (!mounted) return;
-
-    setState(() {
-      isLoading = true;
-    });
-
-    final loadedPlayers = await getPlayersViaGameId(context);
-
-    if (!mounted) return;
-
-    setState(() {
-      players = loadedPlayers;
-      isLoading = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    log('GameCardItem built');
-    return GestureDetector(
-      onTap: () {
-        if (!isLoading) {
-          Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => GameBoard(
-                        game: widget.game,
-                        playerIds: players.map((e) => e.id!).toList(),
-                      )));
-        }
-      },
-      child: buildListTile(),
+    _playersFuture = context.read<PlayerStateModel>().getPlayersWithGameId(
+      widget.game.id ?? 0,
     );
   }
 
-  Widget buildListTile() {
-    var isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-    var width = MediaQuery.of(context).size.width;
-    var height = MediaQuery.of(context).size.height;
-
-    if (isLoading) // Show CircularProgressIndicator when loading
-      return Center(child: CircularProgressIndicator());
-    else
-      return Card(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-                leading: Container(
-                  width: MediaQuery.of(context).size.width * 0.1,
-                  height: MediaQuery.of(context).size.height * 0.5,
-                  decoration: BoxDecoration(
-                    border: Border.all(width: 0),
-                    shape: BoxShape.circle,
-                    color: backgroundButtonColorBlue,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${widget.index}',
-                      style: TextStyle(
-                          color: foregroundColor,
-                          fontFamily: fontFamilySFProText,
-                          fontSize: 20.0,
-                          fontStyle: FontStyle.normal),
-                    ),
-                  ),
-                ),
-                title: Text(
-                  players.map((e) => e.name).join(", "),
-                  style: TextStyle(
-                      color: foregroundColor,
-                      fontFamily: fontFamilySFProText,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15.0,
-                      fontStyle: FontStyle.normal),
-                ),
-                subtitle: Text(
-                  '${widget.game.createAt}',
-                  style: TextStyle(
-                      color: foregroundHintColor,
-                      fontFamily: fontFamilySFProText,
-                      fontWeight: FontWeight.normal,
-                      fontSize: 13.0,
-                      fontStyle: FontStyle.normal),
-                ),
-                trailing: IconButton(
-                  onPressed: () => {
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => GameBoard(
-                                  game: widget.game,
-                                  playerIds: players.map((e) => e.id!).toList(),
-                                )))
-                  },
-                  icon: Icon(Icons.navigate_next,
-                      color: foregroundColor, size: 30.0),
-                )),
-            ButtonBar(alignment: MainAxisAlignment.end, children: <Widget>[
-              SizedBox(
-                width: isPortrait ? width * 0.3 : height * 0.3,
-                height: isPortrait ? height * 0.055 : width * 0.055,
-                child: TextButton(
-                    onPressed: () async {
-                      final model =
-                          Provider.of<GameStateModel>(context, listen: false);
-                      int id = -1;
-                      await model
-                          .addGame(
-                              Game(
-                                  numberOfPlayers: players.length,
-                                  createAt: DateFormat('yyyy-MM-dd H:m')
-                                      .format(DateTime.now())),
-                              players.map((e) => e.id!).toList())
-                          .then((value) => id = value);
-
-                      await model
-                          .getGameWithId(id)
-                          .then((value) => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => GameBoard(
-                                        game: value!,
-                                        playerIds:
-                                            players.map((e) => e.id!).toList(),
-                                      ))));
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.open_in_new,
-                          size: isPortrait ? width * 0.03 : height * 0.03,
-                          color: const Color(0xffcccccc),
-                        ),
-                        Text(AppLocalizations.of(context)!.new_play,
-                            style: TextStyle(
-                                color: foregroundButtonColor,
-                                fontFamily: fontFamily,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15.0,
-                                fontStyle: FontStyle.normal)),
-                      ],
-                    )),
-              ),
-              SizedBox(
-                width: isPortrait ? width * 0.3 : height * 0.3,
-                height: isPortrait ? height * 0.055 : width * 0.055,
-                child: TextButton(
-                    onPressed: () async {
-                      double delta = 150;
-
-                      return showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return Center(
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.vertical,
-                              child: AlertDialog(
-                                backgroundColor: backgroundHeaderColor,
-                                title: Center(
-                                    child: Text(
-                                  AppLocalizations.of(context)!.delete,
-                                  style: TextStyle(
-                                      color: foregroundColor,
-                                      fontFamily: fontFamilySFProText,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15.0,
-                                      fontStyle: FontStyle.normal),
-                                )),
-                                content: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    Center(
-                                        child: Text(
-                                      AppLocalizations.of(context)!
-                                          .delete_confirm,
-                                      style: TextStyle(
-                                          color: foregroundColor,
-                                          fontFamily: fontFamilySFProText,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 15.0,
-                                          fontStyle: FontStyle.normal),
-                                    )),
-                                  ],
-                                ),
-                                actionsOverflowDirection:
-                                    VerticalDirection.down,
-                                actionsOverflowButtonSpacing: 15.0,
-                                actions: <Widget>[
-                                  SizedBox(
-                                    width: isPortrait
-                                        ? width - delta
-                                        : height - delta,
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceEvenly,
-                                      children: <Widget>[
-                                        Expanded(
-                                          child: TextButton(
-                                            onPressed: () {
-                                              Navigator.of(context).pop(false);
-                                            },
-                                            child: Text(
-                                                AppLocalizations.of(context)!
-                                                    .cancel,
-                                                style: TextStyle(
-                                                    color:
-                                                        foregroundButtonColor,
-                                                    fontFamily: fontFamily,
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 13.0,
-                                                    fontStyle:
-                                                        FontStyle.normal)),
-                                          ),
-                                        ),
-                                        SizedBox(
-                                          width: 20.0,
-                                        ),
-                                        Expanded(
-                                          child: TextButton(
-                                            onPressed: () {
-                                              Navigator.of(context).pop(true);
-                                            },
-                                            child: Text(
-                                              AppLocalizations.of(context)!
-                                                  .delete,
-                                              style: TextStyle(
-                                                  color: foregroundButtonColor,
-                                                  fontFamily: fontFamily,
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 13.0,
-                                                  fontStyle: FontStyle.normal),
-                                            ),
-                                          ),
-                                        )
-                                      ],
-                                    ),
-                                  )
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ).then((value) async {
-                        if (value == true) {
-                          final model = Provider.of<GameStateModel>(context,
-                              listen: false);
-                          model.deleteGame(widget.game.id!);
-                        }
-                      });
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.delete_forever,
-                          size: MediaQuery.of(context).size.height * 0.03,
-                          color: const Color(0xffcccccc),
-                        ),
-                        Text(AppLocalizations.of(context)!.delete,
-                            style: TextStyle(
-                                color: foregroundButtonColor,
-                                fontFamily: fontFamily,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 15.0,
-                                fontStyle: FontStyle.normal)),
-                      ],
-                    )),
-              )
-            ]),
-          ],
-        ),
-        color: backgroundHeaderColor,
+  @override
+  void didUpdateWidget(covariant GameCardItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.game.id != widget.game.id) {
+      _playersFuture = context.read<PlayerStateModel>().getPlayersWithGameId(
+        widget.game.id ?? 0,
       );
+    }
   }
+
+  void _openGame(List<Player> players) => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => GameBoard(
+        game: widget.game,
+        playerIds: players.map((player) => player.id!).toList(),
+      ),
+    ),
+  );
+  Future<void> _createRematch(List<Player> players) async {
+    final model = context.read<GameStateModel>();
+    final id = await model.addGame(
+      Game(
+        numberOfPlayers: players.length,
+        createAt: DateFormat('yyyy-MM-dd H:m').format(DateTime.now()),
+      ),
+      players.map((player) => player.id!).toList(),
+    );
+    final game = await model.getGameWithId(id);
+    if (!mounted || game == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GameBoard(
+          game: game,
+          playerIds: players.map((player) => player.id!).toList(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete() async {
+    // Keep the ID that belongs to the visible card. The list can rebuild while
+    // the confirmation dialog is open.
+    final gameId = widget.game.id;
+    final delete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: backgroundHeaderColor,
+        title: Text(
+          AppLocalizations.of(context)!.delete,
+          style: const TextStyle(
+            color: foregroundButtonColor,
+            fontFamily: fontFamilySFProText,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          AppLocalizations.of(context)!.delete_confirm,
+          style: const TextStyle(
+            color: foregroundColor,
+            fontFamily: fontFamilySFProText,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(AppLocalizations.of(context)!.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: Text(AppLocalizations.of(context)!.delete),
+          ),
+        ],
+      ),
+    );
+    if (delete == true && gameId != null) {
+      await context.read<GameStateModel>().deleteGame(gameId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<Player>>(
+    future: _playersFuture,
+    builder: (context, snapshot) {
+      if (!snapshot.hasData) return const _GameCardPlaceholder();
+      final players = snapshot.data!;
+      return Material(
+        color: backgroundHeaderColor,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => _openGame(players),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: backgroundButtonColorBlue,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${widget.index}',
+                        style: const TextStyle(
+                          color: foregroundButtonColor,
+                          fontFamily: fontFamilySFProText,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        players.map((player) => player.name).join(' • '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: foregroundButtonColor,
+                          fontFamily: fontFamilySFProText,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: AppLocalizations.of(context)!.delete,
+                      onPressed: _confirmDelete,
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: foregroundHintColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today_outlined,
+                      size: 15,
+                      color: foregroundHintColor,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _formattedDate(),
+                        style: const TextStyle(
+                          color: foregroundHintColor,
+                          fontFamily: fontFamilySFProText,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _createRematch(players),
+                      icon: const Icon(Icons.replay_rounded, size: 18),
+                      label: Text(AppLocalizations.of(context)!.new_play),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: foregroundColor,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+  String _formattedDate() {
+    try {
+      return DateFormat('MMM d, yyyy • HH:mm')
+          .format(DateFormat('yyyy-MM-dd H:m').parse(widget.game.createAt));
+    } catch (_) {
+      return widget.game.createAt;
+    }
+  }
+}
+
+class _GameCardPlaceholder extends StatelessWidget {
+  const _GameCardPlaceholder();
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 100,
+    decoration: BoxDecoration(
+      color: backgroundHeaderColor,
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: const Center(
+      child: SizedBox(
+        width: 22,
+        height: 22,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: backgroundButtonColorBlue,
+        ),
+      ),
+    ),
+  );
 }

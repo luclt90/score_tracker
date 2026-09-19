@@ -9,8 +9,8 @@ const Color backgroundButtonColorAlabaster =
 const Color backgroundButtonColorBlue = const Color(0xff4280a8); // Color: Blue
 const Color foregroundColor = const Color(0xffcccccc); //Color: Silver
 
-String fontFamily = 'SF Pro Display';
-String fontFamilySFProText = 'SF Pro Text';
+const String fontFamily = 'SF Pro Display';
+const String fontFamilySFProText = 'SF Pro Text';
 
 TextStyle rowTextStyle = TextStyle(
     color: foregroundColor,

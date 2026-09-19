@@ -21,10 +21,16 @@ class GameStateModel extends ChangeNotifier {
     }
   }
 
-  Future<int> addGame(Game game, List<int> playerIds, {bool isNotify = true}) {
-    var id = GameRepository.addGame(game, playerIds);
-    loadGames(isNotify: isNotify);
-
+  Future<int> addGame(
+    Game game,
+    List<int> playerIds, {
+    bool isNotify = true,
+  }) async {
+    // Wait for SQLite to finish writing before reading the history again.
+    // Previously these operations raced, so HomePage could receive the old list
+    // until the user manually refreshed it.
+    final id = await GameRepository.addGame(game, playerIds);
+    await loadGames(isNotify: isNotify);
     return id;
   }
 
@@ -32,9 +38,8 @@ class GameStateModel extends ChangeNotifier {
     return GameRepository.getGameWithId(id);
   }
 
-  void deleteGame(int id) {
-    GameRepository.deleteGame(id).then((value) {
-      loadGames();
-    });
+  Future<void> deleteGame(int id) async {
+    await GameRepository.deleteGame(id);
+    await loadGames();
   }
 }

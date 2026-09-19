@@ -6,44 +6,45 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:score_tracker/l10n/app_localizations.dart';
-import 'package:score_tracker/models/game_detail_state_model.dart';
 import 'package:score_tracker/models/game.dart';
 import 'package:score_tracker/models/game_state_model.dart';
 import 'package:score_tracker/models/player.dart';
 import 'package:score_tracker/models/player_state_model.dart';
 import 'package:score_tracker/screens/add_player.dart';
 import 'package:score_tracker/screens/game_board.dart';
+import 'package:score_tracker/widgets/add_players_widget.dart';
 
 import '../ad_manager.dart';
 import '../styles.dart';
-import '../widgets/add_players_widget.dart';
 
 class SelectPlayer extends StatefulWidget {
+  const SelectPlayer({super.key});
+
   @override
-  _SelectPlayerState createState() => _SelectPlayerState();
+  State<SelectPlayer> createState() => _SelectPlayerState();
 }
 
 class _SelectPlayerState extends State<SelectPlayer> {
-  // COMPLETE: Add _bannerAd
+  final List<Player> _selectedPlayers = [];
   BannerAd? _bannerAd;
-  bool _isLoading = false;
+  bool _isLoading = true;
+  bool _isStarting = false;
 
   @override
   void initState() {
-    setState(() {
-      _isLoading = true;
-    });
+    super.initState();
+    _loadPlayers();
+  }
 
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
-      final model = Provider.of<PlayerStateModel>(context, listen: false);
-      model.loadPlayers().then((value) => {
-            setState(() {
-              _isLoading = false;
-            })
-          });
-    });
+  Future<void> _loadPlayers() async {
+    await context.read<PlayerStateModel>().loadPlayers();
+    if (!mounted) return;
+    final hasPlayers = context.read<PlayerStateModel>().countPlayer() > 0;
+    if (hasPlayers) _loadBanner();
+    setState(() => _isLoading = false);
+  }
 
-    // COMPLETE: Load a banner ad
+  void _loadBanner() {
     BannerAd(
       adUnitId: kReleaseMode
           ? AdManager.bannerAdUnitSelectPlayerId
@@ -52,242 +53,270 @@ class _SelectPlayerState extends State<SelectPlayer> {
       size: AdSize.banner,
       listener: BannerAdListener(
         onAdLoaded: (ad) {
-          setState(() {
-            _bannerAd = ad as BannerAd;
-          });
+          if (!mounted) {
+            ad.dispose();
+            return;
+          }
+          setState(() => _bannerAd = ad as BannerAd);
         },
-        onAdFailedToLoad: (ad, err) {
-          log('Failed to load a banner ad: ${err.message}');
+        onAdFailedToLoad: (ad, error) {
+          log('Failed to load select-player banner: ${error.message}');
           ad.dispose();
         },
       ),
     ).load();
+  }
 
-    super.initState();
+  void _togglePlayer(Player player) {
+    setState(() {
+      if (_selectedPlayers.contains(player)) {
+        _selectedPlayers.remove(player);
+      } else if (_selectedPlayers.length < 6) {
+        _selectedPlayers.add(player);
+      }
+    });
+  }
+
+  Future<bool> _confirmDelete(Player player) async {
+    final t = AppLocalizations.of(context)!;
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: backgroundHeaderColor,
+            title: Text(t.delete, style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText, fontWeight: FontWeight.w700)),
+            content: Text(t.delete_confirm, style: const TextStyle(color: foregroundColor, fontFamily: fontFamilySFProText)),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(t.cancel)),
+              FilledButton(onPressed: () => Navigator.pop(dialogContext, true), style: FilledButton.styleFrom(backgroundColor: Colors.redAccent), child: Text(t.delete)),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _startGame() async {
+    if (_selectedPlayers.length < 2 || _isStarting) return;
+    setState(() => _isStarting = true);
+    try {
+      final now = DateFormat('yyyy-MM-dd H:m').format(DateTime.now());
+      final model = context.read<GameStateModel>();
+      final ids = _selectedPlayers.map((player) => player.id!).toList();
+      final gameId = await model.addGame(
+        Game(numberOfPlayers: _selectedPlayers.length, createAt: now),
+        ids,
+      );
+      final game = await model.getGameWithId(gameId);
+      if (!mounted || game == null) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => GameBoard(game: game, playerIds: ids)),
+      );
+    } finally {
+      if (mounted) setState(() => _isStarting = false);
+    }
   }
 
   @override
   void dispose() {
-    // COMPLETE: Dispose a BannerAd object
     _bannerAd?.dispose();
     super.dispose();
   }
 
-  List<Player> playersSelected = [];
-
-  String getPlayers() {
-    List<String> result = [];
-    for (var i = 0; i < playersSelected.length; i++) {
-      result.add(playersSelected[i].name);
-    }
-
-    return result.length > 0
-        ? result.join(', ')
-        : AppLocalizations.of(context)!.select_2to6player;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final model = Provider.of<PlayerStateModel>(context);
-    final players = model.players;
-
+    final t = AppLocalizations.of(context)!;
+    final players = context.watch<PlayerStateModel>().players;
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: Text(
-          AppLocalizations.of(context)!.select_player_title,
-          style: TextStyle(color: foregroundColor),
-        ),
-        backgroundColor: backgroundHeaderColor,
-        actions: <Widget>[
+        title: Text(t.select_player_title, style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText, fontWeight: FontWeight.w700, fontSize: 18)),
+        backgroundColor: backgroundColor,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        actions: [
           IconButton(
-              icon: Icon(Icons.add, color: foregroundButtonColor),
-              onPressed: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => AddPlayer()));
-              })
+            tooltip: t.add_player,
+            icon: const Icon(Icons.person_add_alt_1_rounded, color: foregroundButtonColor),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddPlayer())),
+          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: _isLoading
-          ? Center(
-              child: CircularProgressIndicator(),
-            )
-          : model.countPlayer() > 0
-              ? Container(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Consumer<GameDetailStateModel>(
-                            builder: (context, value, child) {
-                          return ListView.builder(
-                            itemCount: players.length,
-                            itemBuilder: (context, index) {
-                              var currentPlayer = players[index];
-                              return Dismissible(
-                                background: Container(
-                                  color: Colors.red,
-                                  child: Icon(Icons.cancel),
-                                ),
-                                secondaryBackground: Container(
-                                  color: Colors.red,
-                                  child: Icon(Icons.cancel),
-                                ),
-                                onDismissed: (direction) async {
-                                  model.deletePlayer(currentPlayer.id!);
-                                },
-                                key: ValueKey(currentPlayer.name),
-                                child: Card(
-                                  color: backgroundHeaderColor,
-                                  child: Theme(
-                                    data: ThemeData(
-                                        unselectedWidgetColor: foregroundColor),
-                                    child: CheckboxListTile(
-                                      value: playersSelected
-                                          .contains(currentPlayer),
-                                      onChanged: (bool? value) {
-                                        if (value!) {
-                                          setState(() {
-                                            if (playersSelected.length < 6) {
-                                              playersSelected
-                                                  .add(currentPlayer);
-                                            }
-                                          });
-                                        } else {
-                                          setState(() {
-                                            playersSelected
-                                                .remove(currentPlayer);
-                                          });
-                                        }
-                                      },
-                                      title: Text(
-                                        currentPlayer.name,
-                                        style:
-                                            TextStyle(color: foregroundColor),
-                                      ),
-                                      checkColor: foregroundColor,
-                                      controlAffinity:
-                                          ListTileControlAffinity.leading,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-                        }),
-                      ),
-                      Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            children: [
-                              SizedBox(
-                                width: MediaQuery.of(context).size.width,
-                                height:
-                                    MediaQuery.of(context).size.height * 0.15,
-                                child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            backgroundButtonColorBlue),
-                                    onPressed: () async {
-                                      if (playersSelected.length >= 2 &&
-                                          playersSelected.length <= 6) {
-                                        final model =
-                                            Provider.of<GameStateModel>(context,
-                                                listen: false);
-                                        int id = -1;
-                                        var now = DateFormat('yyyy-MM-dd H:m')
-                                            .format(DateTime.now());
-                                        await model
-                                            .addGame(
-                                                Game(
-                                                    numberOfPlayers:
-                                                        playersSelected.length,
-                                                    createAt: now),
-                                                playersSelected
-                                                    .map((e) => e.id!)
-                                                    .toList())
-                                            .then((value) => id = value);
-
-                                        model.getGameWithId(id).then((value) =>
-                                            Navigator.pushReplacement(
-                                                context,
-                                                MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        GameBoard(
-                                                          game: value!,
-                                                          playerIds:
-                                                              playersSelected
-                                                                  .map((e) =>
-                                                                      e.id!)
-                                                                  .toList(),
-                                                        ))));
-                                      }
-                                    },
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Expanded(
-                                            child: Column(
-                                          children: [
-                                            Text(getPlayers(),
-                                                style: TextStyle(
-                                                    color: foregroundColor,
-                                                    fontWeight:
-                                                        FontWeight.w700)),
-                                            Divider(
-                                              color: Colors.grey,
-                                              thickness: 2.0,
-                                            ),
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  Icons.play_arrow,
-                                                  size: MediaQuery.of(context)
-                                                          .size
-                                                          .height *
-                                                      0.06,
-                                                  color:
-                                                      const Color(0xffcccccc),
-                                                ),
-                                                Text(
-                                                    AppLocalizations.of(
-                                                            context)!
-                                                        .let_start,
-                                                    style: TextStyle(
-                                                        color:
-                                                            foregroundColor)),
-                                              ],
-                                            )
-                                          ],
-                                        ))
-                                      ],
-                                    )),
+          ? const Center(child: CircularProgressIndicator(color: backgroundButtonColorBlue))
+          : players.isEmpty
+              ? const AddPlayersWidget()
+              : RefreshIndicator(
+                  color: backgroundButtonColorBlue,
+                  onRefresh: _loadPlayers,
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(child: _SelectionHeader(selectedPlayers: _selectedPlayers, hint: t.select_2to6player)),
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 160),
+                        sliver: SliverList.separated(
+                          itemCount: players.length,
+                          itemBuilder: (context, index) {
+                            final player = players[index];
+                            final selected = _selectedPlayers.contains(player);
+                            final unavailable = !selected && _selectedPlayers.length == 6;
+                            return Dismissible(
+                              key: ValueKey(player.id),
+                              direction: DismissDirection.endToStart,
+                              confirmDismiss: (_) => _confirmDelete(player),
+                              onDismissed: (_) {
+                                _selectedPlayers.remove(player);
+                                context.read<PlayerStateModel>().deletePlayer(player.id!);
+                              },
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 24),
+                                decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(16)),
+                                child: const Icon(Icons.delete_outline_rounded, color: foregroundButtonColor),
                               ),
-                              SizedBox(
-                                height: 5.0,
+                              child: _PlayerTile(
+                                player: player,
+                                selected: selected,
+                                unavailable: unavailable,
+                                onTap: () => _togglePlayer(player),
                               ),
-                              _bannerAd != null
-                                  ? Align(
-                                      alignment: Alignment.bottomCenter,
-                                      child: SizedBox(
-                                        width: _bannerAd!.size.width.toDouble(),
-                                        height:
-                                            _bannerAd!.size.height.toDouble(),
-                                        child: AdWidget(ad: _bannerAd!),
-                                      ),
-                                    )
-                                  : SizedBox.shrink(),
-                            ],
-                          ),
+                            );
+                          },
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
                         ),
-                      )
+                      ),
                     ],
                   ),
-                )
-              : SingleChildScrollView(child: AddPlayersWidget()),
+                ),
+      bottomNavigationBar: players.isEmpty || _isLoading ? null : _StartPanel(
+        isReady: _selectedPlayers.length >= 2,
+        isStarting: _isStarting,
+        label: t.let_start,
+        onStart: _startGame,
+        bannerAd: _bannerAd,
+      ),
+    );
+  }
+}
+
+class _SelectionHeader extends StatelessWidget {
+  const _SelectionHeader({required this.selectedPlayers, required this.hint});
+  final List<Player> selectedPlayers;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final names = selectedPlayers.map((player) => player.name).join(' • ');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(color: backgroundHeaderColor, borderRadius: BorderRadius.circular(20)),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(color: backgroundButtonColorBlue.withValues(alpha: .22), borderRadius: BorderRadius.circular(14)),
+              child: const Icon(Icons.groups_rounded, color: backgroundButtonColorBlue),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                names.isEmpty ? hint : names,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText, fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text('${selectedPlayers.length}/6', style: const TextStyle(color: backgroundButtonColorBlue, fontFamily: fontFamilySFProText, fontSize: 18, fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlayerTile extends StatelessWidget {
+  const _PlayerTile({required this.player, required this.selected, required this.unavailable, required this.onTap});
+  final Player player;
+  final bool selected;
+  final bool unavailable;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = player.name.trim().isEmpty ? '?' : player.name.trim()[0].toUpperCase();
+    return Material(
+      color: selected ? backgroundButtonColorBlue.withValues(alpha: .18) : backgroundHeaderColor,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: unavailable ? null : onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Opacity(
+          opacity: unavailable ? .45 : 1,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                CircleAvatar(backgroundColor: selected ? backgroundButtonColorBlue : foregroundHintColor, child: Text(initials, style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText, fontWeight: FontWeight.w700))),
+                const SizedBox(width: 14),
+                Expanded(child: Text(player.name, style: const TextStyle(color: foregroundButtonColor, fontFamily: fontFamilySFProText, fontSize: 17, fontWeight: FontWeight.w600))),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(color: selected ? backgroundButtonColorBlue : Colors.transparent, border: Border.all(color: selected ? backgroundButtonColorBlue : foregroundHintColor, width: 1.5), borderRadius: BorderRadius.circular(8)),
+                  child: selected ? const Icon(Icons.check_rounded, size: 18, color: foregroundButtonColor) : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StartPanel extends StatelessWidget {
+  const _StartPanel({required this.isReady, required this.isStarting, required this.label, required this.onStart, required this.bannerAd});
+  final bool isReady;
+  final bool isStarting;
+  final String label;
+  final VoidCallback onStart;
+  final BannerAd? bannerAd;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        color: backgroundColor,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: FilledButton.icon(
+                onPressed: isReady && !isStarting ? onStart : null,
+                style: FilledButton.styleFrom(backgroundColor: backgroundButtonColorBlue, disabledBackgroundColor: backgroundHeaderColor, foregroundColor: foregroundButtonColor, disabledForegroundColor: foregroundHintColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                icon: isStarting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: foregroundButtonColor)) : const Icon(Icons.play_arrow_rounded),
+                label: Text(label, style: const TextStyle(fontFamily: fontFamilySFProText, fontWeight: FontWeight.w700, fontSize: 17)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: AdSize.banner.height.toDouble(),
+              child: bannerAd == null ? null : Center(child: SizedBox(width: bannerAd!.size.width.toDouble(), height: bannerAd!.size.height.toDouble(), child: AdWidget(ad: bannerAd!))),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-//import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:score_tracker/l10n/app_localizations.dart';
 import 'package:score_tracker/models/game_detail_state_model.dart';
@@ -12,228 +11,299 @@ import 'package:score_tracker/widgets/share_app.dart';
 import '../styles.dart';
 
 class HomePage extends StatefulWidget {
+  const HomePage({super.key});
   @override
-  _HomePageState createState() => _HomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  bool _isLoading = false;
-
+  Future<InitializationStatus>? _adsInitialization;
+  bool _isLoading = true;
   @override
   void initState() {
-    setState(() {
-      _isLoading = true;
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
-      final model = Provider.of<GameStateModel>(context, listen: false);
-      model.loadGames().then(
-        (value) => {
-          setState(() {
-            _isLoading = false;
-          }),
-        },
-      );
-    });
-
     super.initState();
+    try {
+      _adsInitialization = MobileAds.instance.initialize();
+    } catch (_) {
+      // Ads are optional; the score history must remain usable without them.
+      _adsInitialization = null;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadGames());
   }
 
+  Future<void> _loadGames() async {
+    if (mounted) setState(() => _isLoading = true);
+    await context.read<GameStateModel>().loadGames();
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  void _createGame() => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => SelectPlayer()),
+  );
   @override
   Widget build(BuildContext context) {
-    final model = Provider.of<GameStateModel>(context);
-    final fetchedGames = model.availableGames;
-
+    final games = context.watch<GameStateModel>().availableGames;
+    final t = AppLocalizations.of(context)!;
     return Scaffold(
-      resizeToAvoidBottomInset: false,
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: Text(
-          AppLocalizations.of(context)!.home_page_list_title,
-          style: TextStyle(color: foregroundColor),
-        ),
-        centerTitle: true,
-        backgroundColor: backgroundHeaderColor,
-      ),
       drawer: buildMenu(context),
-      body: FutureBuilder(
-        future: _initGoogleMobileAds(),
-        builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
-          if (snapshot.hasData) {
-            return _isLoading
-                ? Center(child: CircularProgressIndicator())
-                : model.countGame() > 0
-                ? Consumer<GameDetailStateModel>(
-                    builder: (context, model, child) {
-                      return ListView.builder(
-                        itemCount: fetchedGames.length,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 5.0,
-                          horizontal: 0.0,
-                        ),
-                        itemBuilder: (context, index) {
-                          return GameCardItem(
-                            game: fetchedGames[index],
-                            index: ++index,
-                          );
-                        },
-                      );
-                    },
-                  )
-                : _buildEmptyList();
-          } else if (snapshot.connectionState == ConnectionState.waiting) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 150.0),
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 150.0),
-            child: CircularProgressIndicator(),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => SelectPlayer()),
-          );
-        },
-        child: Icon(Icons.add_circle_outline, color: foregroundButtonColor),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _createGame,
         backgroundColor: backgroundButtonColorBlue,
+        foregroundColor: foregroundButtonColor,
+        icon: const Icon(Icons.add_rounded),
+        label: Text(t.create_new),
       ),
-    );
-  }
-
-  Theme buildMenu(BuildContext context) {
-    return Theme(
-      data: Theme.of(context).copyWith(canvasColor: Color(0xff35363b)),
-      child: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: <Widget>[
-            DrawerHeader(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Text(
-                    AppLocalizations.of(context)!.app_name,
-                    style: TextStyle(
-                      color: foregroundColor,
-                      fontFamily: fontFamilySFProText,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 22.0,
-                      fontStyle: FontStyle.normal,
+      body: FutureBuilder<InitializationStatus>(
+        future: _adsInitialization,
+        builder: (context, _) {
+          if (_isLoading) return const _HomeLoading();
+          return SafeArea(
+            child: RefreshIndicator(
+              color: backgroundButtonColorBlue,
+              onRefresh: _loadGames,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverAppBar(
+                    pinned: true,
+                    floating: true,
+                    backgroundColor: backgroundColor,
+                    surfaceTintColor: Colors.transparent,
+                    elevation: 0,
+                    leading: Builder(
+                      builder: (context) => IconButton(
+                        tooltip: MaterialLocalizations.of(context)
+                            .openAppDrawerTooltip,
+                        icon: const Icon(Icons.menu_rounded),
+                        onPressed: Scaffold.of(context).openDrawer,
+                      ),
+                    ),
+                    title: Text(
+                      t.app_name,
+                      style: const TextStyle(
+                        color: foregroundButtonColor,
+                        fontFamily: fontFamilySFProText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    actions: [
+                      IconButton(
+                        tooltip: MaterialLocalizations.of(context)
+                            .refreshIndicatorSemanticLabel,
+                        onPressed: _loadGames,
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                  SliverToBoxAdapter(
+                    child: _HistoryHeader(
+                      count: games.length,
+                      title: t.home_page_list_title,
                     ),
                   ),
-                  SizedBox(height: 5.0),
-                  // FutureBuilder<PackageInfo>(
-                  //     future: PackageInfo.fromPlatform(),
-                  //     builder: (context, snapshot) {
-                  //       String text = '';
-                  //       if (snapshot.data != null) {
-                  //         final buildVersion = snapshot.data?.version;
-                  //         text = 'Version ' + buildVersion!;
-                  //       }
-                  //       return Text(
-                  //         text,
-                  //         style: TextStyle(
-                  //             color: foregroundColor,
-                  //             fontFamily: fontFamilySFProText,
-                  //             fontWeight: FontWeight.w600,
-                  //             fontSize: 15.0,
-                  //             fontStyle: FontStyle.italic),
-                  //       );
-                  //     }),
+                  if (games.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _EmptyHistory(
+                        title: t.empty_list,
+                        message: t.alway_beside,
+                        actionLabel: t.create_new,
+                        onCreate: _createGame,
+                      ),
+                    )
+                  else
+                    Consumer<GameDetailStateModel>(
+                      builder: (context, _, child) => SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                        sliver: SliverList.separated(
+                          itemCount: games.length,
+                          itemBuilder: (context, index) => GameCardItem(
+                            key: ValueKey(games[index].id),
+                            game: games[index],
+                            index: index + 1,
+                          ),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                        ),
+                      ),
+                    ),
                 ],
               ),
-              decoration: BoxDecoration(color: const Color(0xff35363b)),
             ),
-            ShareAppBtn(),
-            RateFeedBackBtn(),
-            PolicyBtn(),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  Padding _buildEmptyList() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 150.0),
-      child: Column(
-        children: <Widget>[
-          Text(
-            AppLocalizations.of(context)!.empty_list,
-            style: TextStyle(
-              color: foregroundColor,
-              fontFamily: fontFamily,
-              fontWeight: FontWeight.w600,
-              fontSize: 22.0,
-              fontStyle: FontStyle.normal,
-            ),
-          ),
-          const SizedBox(height: 20.0),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 50.0, right: 50.0),
-              child: Text(
-                AppLocalizations.of(context)!.alway_beside,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: foregroundColor,
-                  fontFamily: fontFamilySFProText,
-                  fontWeight: FontWeight.normal,
-                  fontSize: 18.0,
-                  fontStyle: FontStyle.normal,
+  Theme buildMenu(BuildContext context) => Theme(
+    data: Theme.of(context).copyWith(canvasColor: backgroundHeaderColor),
+    child: Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: const BoxDecoration(color: backgroundColor),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircleAvatar(
+                  radius: 28,
+                  backgroundColor: backgroundButtonColorBlue,
+                  child: Icon(
+                    Icons.scoreboard_outlined,
+                    color: foregroundButtonColor,
+                    size: 30,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 12),
+                Text(
+                  AppLocalizations.of(context)!.app_name,
+                  style: const TextStyle(
+                    color: foregroundButtonColor,
+                    fontFamily: fontFamilySFProText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 21,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 20.0),
+          ShareAppBtn(),
+          RateFeedBackBtn(),
+          PolicyBtn(),
+        ],
+      ),
+    ),
+  );
+}
+
+class _HistoryHeader extends StatelessWidget {
+  const _HistoryHeader({required this.count, required this.title});
+  final int count;
+  final String title;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+    child: Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: backgroundHeaderColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
           Container(
-            margin: EdgeInsets.only(
-              left: 50.0,
-              top: 10.0,
-              right: 50.0,
-              bottom: 10.0,
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: backgroundButtonColorBlue.withValues(alpha: .22),
+              borderRadius: BorderRadius.circular(14),
             ),
-            width: double.infinity,
-            height: 48.0,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: backgroundButtonColorBlue,
+            child: const Icon(
+              Icons.history_rounded,
+              color: backgroundButtonColorBlue,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: foregroundButtonColor,
+                fontFamily: fontFamilySFProText,
+                fontSize: 21,
+                fontWeight: FontWeight.w700,
               ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => SelectPlayer()),
-                );
-              },
-              child: Text(
-                AppLocalizations.of(context)!.create_new,
-                style: TextStyle(
-                  color: foregroundColor,
-                  fontFamily: fontFamily,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 18.0,
-                  fontStyle: FontStyle.normal,
-                ),
-              ),
-              // shape: RoundedRectangleBorder(
-              //     borderRadius: BorderRadius.circular(6.0)),
+            ),
+          ),
+          Text(
+            '$count',
+            style: const TextStyle(
+              color: foregroundButtonColor,
+              fontFamily: fontFamilySFProText,
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Future<InitializationStatus> _initGoogleMobileAds() {
-    // TODO: Initialize Google Mobile Ads SDK
-    return MobileAds.instance.initialize();
-  }
+class _EmptyHistory extends StatelessWidget {
+  const _EmptyHistory({
+    required this.title,
+    required this.message,
+    required this.actionLabel,
+    required this.onCreate,
+  });
+  final String title, message, actionLabel;
+  final VoidCallback onCreate;
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: const BoxDecoration(
+              color: backgroundHeaderColor,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.sports_esports_outlined,
+              size: 52,
+              color: backgroundButtonColorBlue,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            title,
+            style: const TextStyle(
+              color: foregroundButtonColor,
+              fontFamily: fontFamilySFProText,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: foregroundHintColor,
+              fontFamily: fontFamilySFProText,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.add_rounded),
+            label: Text(actionLabel),
+            style: FilledButton.styleFrom(
+              backgroundColor: backgroundButtonColorBlue,
+              foregroundColor: foregroundButtonColor,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _HomeLoading extends StatelessWidget {
+  const _HomeLoading();
+  @override
+  Widget build(BuildContext context) => const Center(
+    child: CircularProgressIndicator(color: backgroundButtonColorBlue),
+  );
 }
