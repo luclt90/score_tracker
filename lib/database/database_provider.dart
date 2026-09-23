@@ -11,13 +11,14 @@ class DatabaseProvider {
   DatabaseProvider._();
   static final DatabaseProvider db = DatabaseProvider._();
 
+  static const _databaseVersion = 5;
+
   Database? _database;
 
-  static const migrationScripts = [
+  static const _createTableScripts = [
     'CREATE TABLE Player (id INTEGER primary key autoincrement, name TEXT NOT NULL UNIQUE, memo TEXT, createAt TEXT)',
     'CREATE TABLE Game (id INTEGER primary key autoincrement, numberOfPlayers INTEGER, createAt TEXT)',
     'CREATE TABLE GameDetail (id INTEGER primary key autoincrement, gameIndex INTERGER, score INTEGER, gameId INTEGER, playerId INTEGER, FOREIGN KEY(gameId) REFERENCES Game(id) on delete cascade, FOREIGN KEY(playerId) REFERENCES Player(id) on delete cascade)',
-    'ALTER TABLE GameDetail ADD COLUMN editedAt TEXT',
   ];
 
   Future<Database?> get database async {
@@ -43,16 +44,15 @@ class DatabaseProvider {
     String path = join(databasesPath, "ScoreChecker.db");
     return await openDatabase(
       path,
-      version: migrationScripts.length + 1,
+      version: _databaseVersion,
       onCreate: (Database db, int version) async {
-        for (int i = 0; i <= migrationScripts.length - 1; i++) {
-          await db.execute(migrationScripts[i]);
+        for (final script in _createTableScripts) {
+          await db.execute(script);
         }
+        await db.execute('ALTER TABLE GameDetail ADD COLUMN editedAt TEXT');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        for (var i = oldVersion - 1; i < newVersion - 1; i++) {
-          await db.execute(migrationScripts[i]);
-        }
+        await _ensureEditedAtColumn(db);
       },
       onConfigure: _onConfigure,
     );

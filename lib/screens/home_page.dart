@@ -20,6 +20,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   Future<InitializationStatus>? _adsInitialization;
   bool _isLoading = true;
+  bool _hasLoadError = false;
   @override
   void initState() {
     super.initState();
@@ -34,8 +35,14 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadGames() async {
     if (mounted) setState(() => _isLoading = true);
-    await context.read<GameStateModel>().loadGames();
-    if (mounted) setState(() => _isLoading = false);
+    try {
+      await context.read<GameStateModel>().loadGames();
+      if (mounted) setState(() => _hasLoadError = false);
+    } catch (_) {
+      if (mounted) setState(() => _hasLoadError = true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _createGame() =>
@@ -107,8 +114,12 @@ class _HomePageState extends State<HomePage> {
                     SliverFillRemaining(
                       hasScrollBody: false,
                       child: _EmptyHistory(
-                        title: t.empty_list,
-                        message: t.alway_beside,
+                        title: _hasLoadError
+                            ? 'Unable to load scores'
+                            : t.empty_list,
+                        message: _hasLoadError
+                            ? 'Pull down to try again.'
+                            : t.alway_beside,
                       ),
                     )
                   else

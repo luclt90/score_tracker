@@ -5,16 +5,17 @@ import 'package:score_tracker/l10n/app_localizations.dart';
 import 'package:score_tracker/models/game_state_model.dart';
 import 'package:score_tracker/models/player_state_model.dart';
 import 'package:score_tracker/screens/home_page.dart';
+
 import 'models/game_detail_state_model.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(
-    ScoreChecker(),
-  );
+  runApp(ScoreChecker());
 }
 
 class ScoreChecker extends StatelessWidget {
+  const ScoreChecker({super.key});
+
   @override
   Widget build(BuildContext context) {
     SystemChrome.setPreferredOrientations([
@@ -23,26 +24,23 @@ class ScoreChecker extends StatelessWidget {
     ]);
 
     return MultiProvider(
-        providers: [
-          ChangeNotifierProvider(
-            create: (ctx) => GameStateModel(),
-          ),
-          ChangeNotifierProvider(
-            create: (ctx) => PlayerStateModel(),
-          ),
-          ChangeNotifierProvider(
-            create: (ctx) => GameDetailStateModel(),
-          ),
-        ],
-        child: MaterialApp(
-            title: 'Score Keeper',
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            theme: ThemeData(
-              primarySwatch: Colors.blue,
-              visualDensity: VisualDensity.adaptivePlatformDensity,
-              useMaterial3: false,
-            ),
-            home: HomePage()));
+      providers: [
+        ChangeNotifierProvider(create: (ctx) => GameStateModel()),
+        ChangeNotifierProvider(create: (ctx) => PlayerStateModel()),
+        ChangeNotifierProvider(create: (ctx) => GameDetailStateModel()),
+      ],
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Score Keeper',
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          visualDensity: VisualDensity.adaptivePlatformDensity,
+          useMaterial3: false,
+        ),
+        home: HomePage(),
+      ),
+    );
   }
 }
