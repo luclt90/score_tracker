@@ -1,3 +1,9 @@
+import 'dart:async';
+import 'dart:ui' as ui;
+
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,9 +14,28 @@ import 'package:score_tracker/screens/home_page.dart';
 
 import 'models/game_detail_state_model.dart';
 
-void main() {
+bool _firebaseInitialized = false;
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(ScoreChecker());
+  try {
+    await Firebase.initializeApp();
+    _firebaseInitialized = true;
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    ui.PlatformDispatcher.instance.onError = (error, stackTrace) {
+      unawaited(
+        FirebaseCrashlytics.instance.recordError(
+          error,
+          stackTrace,
+          fatal: true,
+        ),
+      );
+      return true;
+    };
+  } catch (error, stackTrace) {
+    debugPrint('Firebase initialization failed: $error\n$stackTrace');
+  }
+  runApp(const ScoreChecker());
 }
 
 class ScoreChecker extends StatelessWidget {
@@ -32,6 +57,9 @@ class ScoreChecker extends StatelessWidget {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Score Keeper',
+        navigatorObservers: _firebaseInitialized
+            ? [FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance)]
+            : const <NavigatorObserver>[],
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         theme: ThemeData(

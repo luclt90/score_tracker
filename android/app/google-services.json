@@ -3,7 +3,7 @@
     "project_number": "1015872541385",
     "firebase_url": "https://score-checker.firebaseio.com",
     "project_id": "score-checker",
-    "storage_bucket": "score-checker.appspot.com"
+    "storage_bucket": "score-checker.firebasestorage.app"
   },
   "client": [
     {
@@ -13,12 +13,7 @@
           "package_name": "ywmluclt.score_tracker"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "1015872541385-045e38jkt5ohne0icejufc60hs7e1pns.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
           "current_key": "AIzaSyDeeQlKwpJ0CGcf_SxqIaeNRKhSS8aBVCM"
@@ -26,14 +21,10 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "1015872541385-045e38jkt5ohne0icejufc60hs7e1pns.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
-      }
+      },
+      "admob_app_id": "ca-app-pub-4811795096615517~2538769940"
     }
   ],
   "configuration_version": "1"
