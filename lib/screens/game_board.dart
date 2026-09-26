@@ -12,6 +12,8 @@ import 'package:score_tracker/models/game_detail.dart';
 import 'package:score_tracker/models/game_detail_state_model.dart';
 import 'package:score_tracker/models/player_in_game.dart';
 import 'package:score_tracker/models/player_score.dart';
+import 'package:score_tracker/services/iap_service.dart';
+import 'package:score_tracker/widgets/remove_ads_offer.dart';
 
 import '../styles.dart';
 
@@ -27,15 +29,20 @@ class GameBoard extends StatefulWidget {
 
 class _GameBoardState extends State<GameBoard> {
   BannerAd? _bannerAd;
+  bool _bannerRequested = false;
   bool _isLoading = true;
   bool _showEditHint = true;
   Object? _loadError;
+  late final IAPService _iapService;
 
   @override
   void initState() {
     super.initState();
+    _iapService = context.read<IAPService>()..addListener(_onIAPChanged);
     _loadGame();
-    _loadBanner();
+    if (_iapService.isEntitlementResolved && !_iapService.isPurchased) {
+      _loadBanner();
+    }
   }
 
   Future<void> _loadGame() async {
@@ -62,6 +69,12 @@ class _GameBoardState extends State<GameBoard> {
   }
 
   void _loadBanner() {
+    if (_bannerRequested ||
+        !_iapService.isEntitlementResolved ||
+        _iapService.isPurchased) {
+      return;
+    }
+    _bannerRequested = true;
     BannerAd(
       adUnitId: kReleaseMode
           ? AdManager.bannerAdUnitId
@@ -70,7 +83,7 @@ class _GameBoardState extends State<GameBoard> {
       size: AdSize.banner,
       listener: BannerAdListener(
         onAdLoaded: (ad) {
-          if (!mounted) {
+          if (!mounted || _iapService.isPurchased) {
             ad.dispose();
             return;
           }
@@ -82,6 +95,16 @@ class _GameBoardState extends State<GameBoard> {
         },
       ),
     ).load();
+  }
+
+  void _onIAPChanged() {
+    if (_iapService.isPurchased) {
+      _bannerAd?.dispose();
+      _bannerAd = null;
+      if (mounted) setState(() {});
+    } else if (_iapService.isEntitlementResolved) {
+      _loadBanner();
+    }
   }
 
   Future<void> _openAddScoreSheet(
@@ -164,8 +187,51 @@ class _GameBoardState extends State<GameBoard> {
     );
   }
 
+  Future<void> _finishGame() async {
+    final shouldFinish = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: backgroundHeaderColor,
+        title: const Text(
+          'Kết thúc ván',
+          style: TextStyle(
+            color: foregroundButtonColor,
+            fontFamily: fontFamilySFProText,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: const Text(
+          'Ván đã được lưu trong lịch sử. Bạn có thể mở lại sau.',
+          style: TextStyle(
+            color: foregroundColor,
+            fontFamily: fontFamilySFProText,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Tiếp tục ghi điểm'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: backgroundButtonColorBlue,
+            ),
+            child: const Text('Kết thúc'),
+          ),
+        ],
+      ),
+    );
+    if (shouldFinish != true || !mounted) return;
+    if (!_iapService.isPurchased) {
+      await showRemoveAdsOfferDialog(context);
+    }
+    if (mounted) Navigator.pop(context);
+  }
+
   @override
   void dispose() {
+    _iapService.removeListener(_onIAPChanged);
     _bannerAd?.dispose();
     super.dispose();
   }
@@ -202,6 +268,14 @@ class _GameBoardState extends State<GameBoard> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Kết thúc ván',
+            icon: const Icon(
+              Icons.check_circle_outline_rounded,
+              color: foregroundButtonColor,
+            ),
+            onPressed: _finishGame,
+          ),
           IconButton(
             tooltip: t.edit_score_help_title,
             icon: const Icon(
@@ -317,22 +391,28 @@ class _ScoreTable extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          width: 30,
-                          height: 30,
+                          width: 44,
+                          height: 44,
                           alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            color: backgroundButtonColorBlue,
+                          decoration: BoxDecoration(
+                            color: player.totalScore < 0
+                                ? negativeScoreBackgroundColor
+                                : backgroundButtonColorBlue,
                             shape: BoxShape.circle,
                           ),
-                          child: Text(
-                            '${player.totalScore}',
-                            style: TextStyle(
-                              color: player.totalScore < 0
-                                  ? Colors.redAccent
-                                  : foregroundButtonColor,
-                              fontFamily: fontFamilySFProText,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '${player.totalScore}',
+                                style: TextStyle(
+                                  color: foregroundButtonColor,
+                                  fontFamily: fontFamilySFProText,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -345,7 +425,7 @@ class _ScoreTable extends StatelessWidget {
                           style: const TextStyle(
                             color: foregroundColor,
                             fontFamily: fontFamilySFProText,
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -376,27 +456,34 @@ class _ScoreTable extends StatelessWidget {
                     final score = detail?.score;
                     return DataCell(
                       Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              score?.toString() ?? '–',
-                              style: const TextStyle(
-                                color: foregroundButtonColor,
-                                fontFamily: fontFamilySFProText,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                        child: Transform.translate(
+                          offset: detail?.editedAt != null
+                              ? const Offset(7.5, 0)
+                              : Offset.zero,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                score?.toString() ?? '–',
+                                style: TextStyle(
+                                  color: score != null && score < 0
+                                      ? negativeScoreColor
+                                      : foregroundButtonColor,
+                                  fontFamily: fontFamilySFProText,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            if (detail?.editedAt != null) ...[
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.edit_rounded,
-                                size: 12,
-                                color: backgroundButtonColorBlue,
-                              ),
+                              if (detail?.editedAt != null) ...[
+                                const SizedBox(width: 3),
+                                const Icon(
+                                  Icons.edit_rounded,
+                                  size: 12,
+                                  color: backgroundButtonColorBlue,
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                       onTap: detail == null
@@ -508,19 +595,19 @@ class _ScoreActionPanel extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: AdSize.banner.height.toDouble(),
-              child: bannerAd == null
-                  ? null
-                  : Center(
-                      child: SizedBox(
-                        width: bannerAd!.size.width.toDouble(),
-                        height: bannerAd!.size.height.toDouble(),
-                        child: AdWidget(ad: bannerAd!),
-                      ),
-                    ),
-            ),
+            if (bannerAd != null) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: AdSize.banner.height.toDouble(),
+                child: Center(
+                  child: SizedBox(
+                    width: bannerAd!.size.width.toDouble(),
+                    height: bannerAd!.size.height.toDouble(),
+                    child: AdWidget(ad: bannerAd!),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

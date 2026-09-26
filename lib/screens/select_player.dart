@@ -13,6 +13,7 @@ import 'package:score_tracker/models/player_state_model.dart';
 import 'package:score_tracker/navigation.dart';
 import 'package:score_tracker/screens/add_player.dart';
 import 'package:score_tracker/screens/game_board.dart';
+import 'package:score_tracker/services/iap_service.dart';
 import 'package:score_tracker/widgets/add_players_widget.dart';
 
 import '../ad_manager.dart';
@@ -30,10 +31,14 @@ class _SelectPlayerState extends State<SelectPlayer> {
   BannerAd? _bannerAd;
   bool _isLoading = true;
   bool _isStarting = false;
+  bool _hasPlayers = false;
+  bool _bannerRequested = false;
+  late final IAPService _iapService;
 
   @override
   void initState() {
     super.initState();
+    _iapService = context.read<IAPService>()..addListener(_onIAPChanged);
     _loadPlayers();
   }
 
@@ -41,11 +46,23 @@ class _SelectPlayerState extends State<SelectPlayer> {
     await context.read<PlayerStateModel>().loadPlayers();
     if (!mounted) return;
     final hasPlayers = context.read<PlayerStateModel>().countPlayer() > 0;
-    if (hasPlayers) _loadBanner();
+    _hasPlayers = hasPlayers;
+    if (hasPlayers &&
+        _iapService.isEntitlementResolved &&
+        !_iapService.isPurchased) {
+      _loadBanner();
+    }
     setState(() => _isLoading = false);
   }
 
   void _loadBanner() {
+    if (_bannerRequested ||
+        !_hasPlayers ||
+        !_iapService.isEntitlementResolved ||
+        _iapService.isPurchased) {
+      return;
+    }
+    _bannerRequested = true;
     BannerAd(
       adUnitId: kReleaseMode
           ? AdManager.bannerAdUnitSelectPlayerId
@@ -54,7 +71,7 @@ class _SelectPlayerState extends State<SelectPlayer> {
       size: AdSize.banner,
       listener: BannerAdListener(
         onAdLoaded: (ad) {
-          if (!mounted) {
+          if (!mounted || _iapService.isPurchased) {
             ad.dispose();
             return;
           }
@@ -66,6 +83,16 @@ class _SelectPlayerState extends State<SelectPlayer> {
         },
       ),
     ).load();
+  }
+
+  void _onIAPChanged() {
+    if (_iapService.isPurchased) {
+      _bannerAd?.dispose();
+      _bannerAd = null;
+      if (mounted) setState(() {});
+    } else if (_iapService.isEntitlementResolved && _hasPlayers) {
+      _loadBanner();
+    }
   }
 
   void _togglePlayer(Player player) {
@@ -141,6 +168,7 @@ class _SelectPlayerState extends State<SelectPlayer> {
 
   @override
   void dispose() {
+    _iapService.removeListener(_onIAPChanged);
     _bannerAd?.dispose();
     super.dispose();
   }
@@ -464,19 +492,19 @@ class _StartPanel extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: AdSize.banner.height.toDouble(),
-              child: bannerAd == null
-                  ? null
-                  : Center(
-                      child: SizedBox(
-                        width: bannerAd!.size.width.toDouble(),
-                        height: bannerAd!.size.height.toDouble(),
-                        child: AdWidget(ad: bannerAd!),
-                      ),
-                    ),
-            ),
+            if (bannerAd != null) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: AdSize.banner.height.toDouble(),
+                child: Center(
+                  child: SizedBox(
+                    width: bannerAd!.size.width.toDouble(),
+                    height: bannerAd!.size.height.toDouble(),
+                    child: AdWidget(ad: bannerAd!),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

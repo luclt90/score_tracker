@@ -12,6 +12,7 @@ import 'package:score_tracker/models/player.dart';
 import 'package:score_tracker/models/player_state_model.dart';
 import 'package:score_tracker/navigation.dart';
 import 'package:score_tracker/screens/game_board.dart';
+import 'package:score_tracker/services/iap_service.dart';
 
 import '../ad_manager.dart';
 import '../styles.dart';
@@ -29,12 +30,17 @@ class _AddPlayersWidgetState extends State<AddPlayersWidget> {
   bool _isStarting = false;
   final List<TextEditingController> _controllers = [];
   BannerAd? _bannerAd;
+  bool _bannerRequested = false;
+  late final IAPService _iapService;
 
   @override
   void initState() {
     super.initState();
+    _iapService = context.read<IAPService>()..addListener(_onIAPChanged);
     _createControllers(_selectedPlayers);
-    _loadBanner();
+    if (_iapService.isEntitlementResolved && !_iapService.isPurchased) {
+      _loadBanner();
+    }
   }
 
   void _createControllers(int count) {
@@ -50,6 +56,12 @@ class _AddPlayersWidgetState extends State<AddPlayersWidget> {
   }
 
   void _loadBanner() {
+    if (_bannerRequested ||
+        !_iapService.isEntitlementResolved ||
+        _iapService.isPurchased) {
+      return;
+    }
+    _bannerRequested = true;
     BannerAd(
       adUnitId: kReleaseMode
           ? AdManager.bannerAdUnitAddPlayerId
@@ -58,7 +70,7 @@ class _AddPlayersWidgetState extends State<AddPlayersWidget> {
       size: AdSize.banner,
       listener: BannerAdListener(
         onAdLoaded: (ad) {
-          if (!mounted) {
+          if (!mounted || _iapService.isPurchased) {
             ad.dispose();
             return;
           }
@@ -70,6 +82,16 @@ class _AddPlayersWidgetState extends State<AddPlayersWidget> {
         },
       ),
     ).load();
+  }
+
+  void _onIAPChanged() {
+    if (_iapService.isPurchased) {
+      _bannerAd?.dispose();
+      _bannerAd = null;
+      if (mounted) setState(() {});
+    } else if (_iapService.isEntitlementResolved) {
+      _loadBanner();
+    }
   }
 
   void _changePlayerCount(int count) {
@@ -125,6 +147,7 @@ class _AddPlayersWidgetState extends State<AddPlayersWidget> {
 
   @override
   void dispose() {
+    _iapService.removeListener(_onIAPChanged);
     for (final controller in _controllers) {
       controller
         ..removeListener(_onNameChanged)
@@ -246,19 +269,19 @@ class _AddPlayersWidgetState extends State<AddPlayersWidget> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: AdSize.banner.height.toDouble(),
-              child: _bannerAd == null
-                  ? null
-                  : Center(
-                      child: SizedBox(
-                        width: _bannerAd!.size.width.toDouble(),
-                        height: _bannerAd!.size.height.toDouble(),
-                        child: AdWidget(ad: _bannerAd!),
-                      ),
-                    ),
-            ),
+            if (_bannerAd != null) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                height: AdSize.banner.height.toDouble(),
+                child: Center(
+                  child: SizedBox(
+                    width: _bannerAd!.size.width.toDouble(),
+                    height: _bannerAd!.size.height.toDouble(),
+                    child: AdWidget(ad: _bannerAd!),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

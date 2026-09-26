@@ -11,6 +11,7 @@ import 'package:score_tracker/l10n/app_localizations.dart';
 import 'package:score_tracker/models/game_state_model.dart';
 import 'package:score_tracker/models/player_state_model.dart';
 import 'package:score_tracker/screens/home_page.dart';
+import 'package:score_tracker/services/iap_service.dart';
 
 import 'models/game_detail_state_model.dart';
 
@@ -35,11 +36,15 @@ Future<void> main() async {
   } catch (error, stackTrace) {
     debugPrint('Firebase initialization failed: $error\n$stackTrace');
   }
-  runApp(const ScoreChecker());
+  final iapService = IAPService();
+  await iapService.initialize();
+  runApp(ScoreChecker(iapService: iapService));
 }
 
 class ScoreChecker extends StatelessWidget {
-  const ScoreChecker({super.key});
+  const ScoreChecker({required this.iapService, super.key});
+
+  final IAPService iapService;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +55,7 @@ class ScoreChecker extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider<IAPService>.value(value: iapService),
         ChangeNotifierProvider(create: (ctx) => GameStateModel()),
         ChangeNotifierProvider(create: (ctx) => PlayerStateModel()),
         ChangeNotifierProvider(create: (ctx) => GameDetailStateModel()),

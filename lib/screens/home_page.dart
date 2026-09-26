@@ -6,7 +6,10 @@ import 'package:score_tracker/models/game_detail_state_model.dart';
 import 'package:score_tracker/models/game_state_model.dart';
 import 'package:score_tracker/navigation.dart';
 import 'package:score_tracker/screens/select_player.dart';
+import 'package:score_tracker/screens/settings_page.dart';
+import 'package:score_tracker/services/iap_service.dart';
 import 'package:score_tracker/widgets/game_card_item.dart';
+import 'package:score_tracker/widgets/remove_ads_offer.dart';
 import 'package:score_tracker/widgets/share_app.dart';
 
 import '../styles.dart';
@@ -110,6 +113,13 @@ class _HomePageState extends State<HomePage> {
                       title: t.home_page_list_title,
                     ),
                   ),
+                  if (!context.watch<IAPService>().isPurchased)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: RemoveAdsOfferButton(),
+                      ),
+                    ),
                   if (games.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
@@ -184,6 +194,22 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           const Divider(height: 1, color: foregroundHintColor),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            leading: const Icon(Icons.settings_rounded, color: foregroundColor),
+            title: const Text(
+              'Cài đặt',
+              style: TextStyle(
+                color: foregroundColor,
+                fontFamily: fontFamilySFProText,
+                fontSize: 16,
+              ),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, smoothPageRoute(const SettingsPage()));
+            },
+          ),
           ShareAppBtn(),
           RateFeedBackBtn(),
           PolicyBtn(),

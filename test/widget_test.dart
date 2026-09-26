@@ -8,12 +8,13 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:score_tracker/main.dart';
+import 'package:score_tracker/services/iap_service.dart';
 
 void main() {
   testWidgets('app starts on the score history screen', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const ScoreChecker());
+    await tester.pumpWidget(ScoreChecker(iapService: IAPService()));
     await tester.pump();
 
     expect(find.text('Score Keeper'), findsOneWidget);
