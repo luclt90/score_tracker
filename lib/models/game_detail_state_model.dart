@@ -2,10 +2,15 @@ import 'package:flutter/foundation.dart';
 import 'package:score_tracker/models/game_detail.dart';
 import 'package:score_tracker/models/player_in_game.dart';
 import 'package:score_tracker/models/player_score.dart';
+import 'package:score_tracker/domain/models/room.dart';
+import 'package:score_tracker/services/room_sync_coordinator.dart';
 
 import 'game_repository.dart';
 
 class GameDetailStateModel extends ChangeNotifier {
+  GameDetailStateModel({this.roomSyncCoordinator});
+
+  final RoomSyncCoordinator? roomSyncCoordinator;
   List<GameDetail> _availableGameDetails = <GameDetail>[];
   List<PlayerInGame> _playersInGame = <PlayerInGame>[];
 
@@ -52,6 +57,36 @@ class GameDetailStateModel extends ChangeNotifier {
 
       _playersInGame.add(playerInGame);
     }
+
+    final roundsByIndex = <int, List<GameDetail>>{};
+    for (final detail in _availableGameDetails) {
+      roundsByIndex.putIfAbsent(detail.gameIndex, () => []).add(detail);
+    }
+    final roomRounds =
+        roundsByIndex.entries
+            .map(
+              (entry) => RoomRound(
+                index: entry.key,
+                scores: {
+                  for (final detail in entry.value)
+                    '${detail.playerId}': detail.score,
+                },
+                editedPlayerIds: {
+                  for (final detail in entry.value)
+                    if (detail.editedAt != null) '${detail.playerId}',
+                },
+              ),
+            )
+            .toList(growable: false)
+          ..sort((a, b) => a.index.compareTo(b.index));
+    await roomSyncCoordinator?.recordScoreboard(
+      gameId: gameId,
+      rounds: roomRounds,
+      scores: {
+        for (final player in _playersInGame)
+          '${player.playerId}': player.totalScore,
+      },
+    );
 
     notifyListeners();
   }

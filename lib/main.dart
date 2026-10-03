@@ -10,8 +10,10 @@ import 'package:provider/provider.dart';
 import 'package:score_tracker/l10n/app_localizations.dart';
 import 'package:score_tracker/models/game_state_model.dart';
 import 'package:score_tracker/models/player_state_model.dart';
+import 'package:score_tracker/providers/room_provider.dart';
 import 'package:score_tracker/screens/home_page.dart';
 import 'package:score_tracker/services/iap_service.dart';
+import 'package:score_tracker/services/room_sync_coordinator.dart';
 
 import 'models/game_detail_state_model.dart';
 
@@ -55,10 +57,25 @@ class ScoreChecker extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        roomRepositoryProvider,
+        Provider<RoomSyncCoordinator>(
+          create: (context) {
+            final coordinator = RoomSyncCoordinator(repository: context.read());
+            unawaited(coordinator.initialize());
+            return coordinator;
+          },
+          dispose: (context, coordinator) {
+            unawaited(coordinator.dispose());
+          },
+        ),
         ChangeNotifierProvider<IAPService>.value(value: iapService),
         ChangeNotifierProvider(create: (ctx) => GameStateModel()),
         ChangeNotifierProvider(create: (ctx) => PlayerStateModel()),
-        ChangeNotifierProvider(create: (ctx) => GameDetailStateModel()),
+        ChangeNotifierProvider(
+          create: (context) => GameDetailStateModel(
+            roomSyncCoordinator: context.read<RoomSyncCoordinator>(),
+          ),
+        ),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

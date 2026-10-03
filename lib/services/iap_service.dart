@@ -6,34 +6,46 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:score_tracker/services/room_analytics_service.dart';
 
 class IAPService extends ChangeNotifier {
   IAPService({InAppPurchase? store}) : _store = store ?? InAppPurchase.instance;
 
-  static const productId = 'remove_ads';
-  static const _entitlementKey = 'has_remove_ads_entitlement';
-  static const _analyticsTransactionKey =
+  static const removeAdsProductId = 'remove_ads';
+  static const multiViewerProductId = 'premium_multi_viewer';
+  static const premiumPlusProductId = 'premium_plus_monthly';
+  static const productId = removeAdsProductId;
+  static const _removeAdsEntitlementKey = 'has_remove_ads_entitlement';
+  static const _multiViewerEntitlementKey = 'has_multi_viewer_entitlement';
+  static const _removeAdsAnalyticsTransactionKey =
       'last_remove_ads_analytics_transaction';
 
   final InAppPurchase _store;
   StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
-  ProductDetails? _product;
+  final Map<String, ProductDetails> _products = {};
   SharedPreferences? _preferences;
   bool _initialized = false;
   bool _isAvailable = false;
-  bool _isPurchased = false;
+  bool _hasRemoveAdsEntitlement = false;
+  bool _hasMultiViewerEntitlement = false;
+  bool _hasPremiumPlusEntitlement = false;
   bool _isEntitlementResolved = false;
   bool _isLoading = true;
-  bool _isPurchasing = false;
+  String? _purchasingProductId;
   String? _statusMessage;
 
-  bool get isPurchased => _isPurchased;
+  bool get isPurchased => _hasRemoveAdsEntitlement;
+  bool get hasRemoveAdsEntitlement => _hasRemoveAdsEntitlement;
+  bool get hasMultiViewerEntitlement => _hasMultiViewerEntitlement;
+  bool get hasPremiumPlusEntitlement => _hasPremiumPlusEntitlement;
   bool get isEntitlementResolved => _isEntitlementResolved;
   bool get isAvailable => _isAvailable;
   bool get isLoading => _isLoading;
-  bool get isPurchasing => _isPurchasing;
+  bool get isPurchasing => _purchasingProductId != null;
   String? get statusMessage => _statusMessage;
-  String? get localizedPrice => _product?.price;
+  String? get localizedPrice => localizedPriceFor(removeAdsProductId);
+
+  String? localizedPriceFor(String id) => _products[id]?.price;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -41,7 +53,10 @@ class IAPService extends ChangeNotifier {
 
     try {
       _preferences = await SharedPreferences.getInstance();
-      _isPurchased = _preferences?.getBool(_entitlementKey) ?? false;
+      _hasRemoveAdsEntitlement =
+          _preferences?.getBool(_removeAdsEntitlementKey) ?? false;
+      _hasMultiViewerEntitlement =
+          _preferences?.getBool(_multiViewerEntitlementKey) ?? false;
     } catch (error) {
       debugPrint('Unable to read IAP cache: $error');
     }
@@ -51,7 +66,7 @@ class IAPService extends ChangeNotifier {
       _handlePurchaseUpdates,
       onError: (Object error) {
         _statusMessage = 'purchase_stream_error';
-        _isPurchasing = false;
+        _purchasingProductId = null;
         notifyListeners();
         debugPrint('Purchase stream error: $error');
       },
@@ -62,7 +77,7 @@ class IAPService extends ChangeNotifier {
 
   Future<void> _initializeStore() async {
     try {
-      await _loadProduct();
+      await _loadProducts();
       if (_isAvailable && defaultTargetPlatform == TargetPlatform.android) {
         await _syncAndroidEntitlement();
       }
@@ -72,7 +87,7 @@ class IAPService extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadProduct() async {
+  Future<void> _loadProducts() async {
     _isLoading = true;
     notifyListeners();
     try {
@@ -82,7 +97,11 @@ class IAPService extends ChangeNotifier {
         return;
       }
 
-      final response = await _store.queryProductDetails({productId});
+      final response = await _store.queryProductDetails({
+        removeAdsProductId,
+        multiViewerProductId,
+        premiumPlusProductId,
+      });
       if (response.error != null) {
         _statusMessage = _isNetworkError(response.error)
             ? 'network_error'
@@ -92,7 +111,16 @@ class IAPService extends ChangeNotifier {
         _statusMessage = 'product_not_found';
         debugPrint('IAP product not found: ${response.notFoundIDs}');
       } else {
-        _product = response.productDetails.first;
+        _products
+          ..clear()
+          ..addEntries(
+            response.productDetails.map(
+              (product) => MapEntry(product.id, product),
+            ),
+          );
+        if (response.notFoundIDs.isNotEmpty) {
+          debugPrint('IAP products not found: ${response.notFoundIDs}');
+        }
         _statusMessage = null;
       }
     } catch (error) {
@@ -105,32 +133,41 @@ class IAPService extends ChangeNotifier {
   }
 
   Future<bool> purchaseRemoveAds() async {
-    if (_isPurchased || _isPurchasing) return false;
+    return purchaseProduct(removeAdsProductId);
+  }
+
+  Future<bool> purchaseProduct(String id) async {
+    if (_hasEntitlementFor(id) || isPurchasing) return false;
     _statusMessage = null;
-    if (!_isAvailable || _product == null) {
-      await _loadProduct();
+    if (!_isAvailable || !_products.containsKey(id)) {
+      await _loadProducts();
     }
-    final product = _product;
+    final product = _products[id];
     if (!_isAvailable || product == null) {
       _statusMessage ??= 'product_not_found';
       notifyListeners();
       return false;
     }
 
-    _isPurchasing = true;
+    _purchasingProductId = id;
     notifyListeners();
     try {
       final started = await _store.buyNonConsumable(
         purchaseParam: PurchaseParam(productDetails: product),
       );
       if (!started) {
-        _isPurchasing = false;
+        _purchasingProductId = null;
         _statusMessage = 'purchase_not_started';
         notifyListeners();
+      } else {
+        await RoomAnalyticsService.logEvent(
+          'purchase_started',
+          parameters: {'product_id': id},
+        );
       }
       return started;
     } catch (error) {
-      _isPurchasing = false;
+      _purchasingProductId = null;
       _statusMessage = 'purchase_error';
       debugPrint('Unable to start IAP purchase: $error');
       notifyListeners();
@@ -178,12 +215,23 @@ class IAPService extends ChangeNotifier {
       final ownedPurchases = response.pastPurchases
           .where(
             (purchase) =>
-                purchase.productID == productId &&
+                _knownProductIds.contains(purchase.productID) &&
                 (purchase.status == PurchaseStatus.purchased ||
                     purchase.status == PurchaseStatus.restored),
           )
           .toList();
-      await _setEntitlement(ownedPurchases.isNotEmpty);
+      final ownedProductIds = ownedPurchases
+          .map((purchase) => purchase.productID)
+          .toSet();
+      await _setRemoveAdsEntitlement(
+        ownedProductIds.contains(removeAdsProductId),
+      );
+      await _setMultiViewerEntitlement(
+        ownedProductIds.contains(multiViewerProductId),
+      );
+      _hasPremiumPlusEntitlement = ownedProductIds.contains(
+        premiumPlusProductId,
+      );
       for (final purchase in ownedPurchases) {
         if (purchase.pendingCompletePurchase) {
           await _store.completePurchase(purchase);
@@ -202,32 +250,36 @@ class IAPService extends ChangeNotifier {
 
   Future<void> _handlePurchaseUpdates(List<PurchaseDetails> purchases) async {
     for (final purchase in purchases) {
-      if (purchase.productID == productId) {
+      if (_knownProductIds.contains(purchase.productID)) {
         switch (purchase.status) {
           case PurchaseStatus.purchased:
-            await _grantEntitlement();
-            _isPurchasing = false;
+            await _grantEntitlement(purchase.productID);
+            _purchasingProductId = null;
             _statusMessage = 'purchase_success';
             await _logPurchase(purchase);
+            await RoomAnalyticsService.logEvent(
+              'purchase_completed',
+              parameters: {'product_id': purchase.productID},
+            );
           case PurchaseStatus.restored:
-            await _grantEntitlement();
-            _isPurchasing = false;
+            await _grantEntitlement(purchase.productID);
+            _purchasingProductId = null;
             _statusMessage = 'restore_success';
           case PurchaseStatus.error:
-            _isPurchasing = false;
+            _purchasingProductId = null;
             _statusMessage = _isNetworkError(purchase.error)
                 ? 'network_error'
                 : 'purchase_error';
             debugPrint('IAP transaction failed: ${purchase.error}');
           case PurchaseStatus.canceled:
-            _isPurchasing = false;
+            _purchasingProductId = null;
             _statusMessage = 'purchase_canceled';
           case PurchaseStatus.pending:
-            _isPurchasing = true;
+            _purchasingProductId = purchase.productID;
         }
       } else if (purchase.status == PurchaseStatus.error ||
           purchase.status == PurchaseStatus.canceled) {
-        _isPurchasing = false;
+        _purchasingProductId = null;
       }
 
       if (purchase.pendingCompletePurchase) {
@@ -241,15 +293,47 @@ class IAPService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _grantEntitlement() async {
-    await _setEntitlement(true);
+  Future<void> _grantEntitlement(String id) async {
+    switch (id) {
+      case removeAdsProductId:
+        await _setRemoveAdsEntitlement(true);
+      case multiViewerProductId:
+        await _setMultiViewerEntitlement(true);
+      case premiumPlusProductId:
+        _hasPremiumPlusEntitlement = true;
+    }
   }
 
-  Future<void> _setEntitlement(bool purchased) async {
-    _isPurchased = purchased;
+  bool _hasEntitlementFor(String id) => switch (id) {
+    removeAdsProductId => _hasRemoveAdsEntitlement,
+    multiViewerProductId => _hasMultiViewerEntitlement,
+    premiumPlusProductId => _hasPremiumPlusEntitlement,
+    _ => false,
+  };
+
+  Set<String> get _knownProductIds => const {
+    removeAdsProductId,
+    multiViewerProductId,
+    premiumPlusProductId,
+  };
+
+  Future<void> _setRemoveAdsEntitlement(bool purchased) async {
+    _hasRemoveAdsEntitlement = purchased;
     try {
       await (_preferences ??= await SharedPreferences.getInstance()).setBool(
-        _entitlementKey,
+        _removeAdsEntitlementKey,
+        purchased,
+      );
+    } catch (error) {
+      debugPrint('Unable to persist IAP entitlement: $error');
+    }
+  }
+
+  Future<void> _setMultiViewerEntitlement(bool purchased) async {
+    _hasMultiViewerEntitlement = purchased;
+    try {
+      await (_preferences ??= await SharedPreferences.getInstance()).setBool(
+        _multiViewerEntitlementKey,
         purchased,
       );
     } catch (error) {
@@ -267,28 +351,33 @@ class IAPService extends ChangeNotifier {
 
   Future<void> _logPurchase(PurchaseDetails purchase) async {
     if (Firebase.apps.isEmpty) return;
+    final product = _products[purchase.productID];
+    if (product == null) return;
     final transactionId = purchase.purchaseID;
+    final transactionKey = purchase.productID == removeAdsProductId
+        ? _removeAdsAnalyticsTransactionKey
+        : 'last_iap_analytics_${purchase.productID}';
     if (transactionId != null &&
-        _preferences?.getString(_analyticsTransactionKey) == transactionId) {
+        _preferences?.getString(transactionKey) == transactionId) {
       return;
     }
     try {
       await FirebaseAnalytics.instance.logPurchase(
-        currency: _product?.currencyCode,
-        value: _product?.rawPrice,
+        currency: product.currencyCode,
+        value: product.rawPrice,
         transactionId: transactionId,
         items: [
           AnalyticsEventItem(
-            itemId: productId,
-            itemName: 'Remove ads',
-            price: _product?.rawPrice,
-            currency: _product?.currencyCode,
+            itemId: purchase.productID,
+            itemName: product.title,
+            price: product.rawPrice,
+            currency: product.currencyCode,
           ),
         ],
       );
       if (transactionId != null) {
         await (_preferences ??= await SharedPreferences.getInstance())
-            .setString(_analyticsTransactionKey, transactionId);
+            .setString(transactionKey, transactionId);
       }
     } catch (error) {
       debugPrint('Unable to log IAP purchase: $error');

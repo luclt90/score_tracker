@@ -12,6 +12,8 @@ import 'package:score_tracker/models/game_detail.dart';
 import 'package:score_tracker/models/game_detail_state_model.dart';
 import 'package:score_tracker/models/player_in_game.dart';
 import 'package:score_tracker/models/player_score.dart';
+import 'package:score_tracker/domain/models/room.dart';
+import 'package:score_tracker/screens/create_room_screen.dart';
 import 'package:score_tracker/services/iap_service.dart';
 import 'package:score_tracker/widgets/remove_ads_offer.dart';
 
@@ -148,6 +150,48 @@ class _GameBoardState extends State<GameBoard> {
     }
   }
 
+  Future<void> _openRoomSharing(
+    List<PlayerInGame> players,
+    List<GameDetail> details,
+  ) async {
+    final roundsByIndex = groupBy(details, (detail) => detail.gameIndex);
+    final roomPlayers = players
+        .map(
+          (player) =>
+              RoomPlayer(id: '${player.playerId}', name: player.playerName),
+        )
+        .toList(growable: false);
+    final roomRounds = roundsByIndex.entries
+        .map(
+          (entry) => RoomRound(
+            index: entry.key,
+            scores: {
+              for (final detail in entry.value)
+                '${detail.playerId}': detail.score,
+            },
+            editedPlayerIds: {
+              for (final detail in entry.value)
+                if (detail.editedAt != null) '${detail.playerId}',
+            },
+          ),
+        )
+        .toList(growable: false);
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CreateRoomScreen(
+          players: roomPlayers,
+          rounds: roomRounds,
+          scores: {
+            for (final player in players)
+              '${player.playerId}': player.totalScore,
+          },
+          gameId: widget.game.id!,
+        ),
+      ),
+    );
+  }
+
   void _showEditHelp() {
     final t = AppLocalizations.of(context)!;
     showDialog<void>(
@@ -268,6 +312,16 @@ class _GameBoardState extends State<GameBoard> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Chia sẻ điểm trực tiếp',
+            icon: const Icon(
+              Icons.qr_code_2_rounded,
+              color: foregroundButtonColor,
+            ),
+            onPressed: players.isEmpty || _isLoading
+                ? null
+                : () => _openRoomSharing(players, details),
+          ),
           IconButton(
             tooltip: 'Kết thúc ván',
             icon: const Icon(

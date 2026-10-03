@@ -11,7 +11,7 @@ class DatabaseProvider {
   DatabaseProvider._();
   static final DatabaseProvider db = DatabaseProvider._();
 
-  static const _databaseVersion = 5;
+  static const _databaseVersion = 6;
 
   Database? _database;
 
@@ -20,6 +20,15 @@ class DatabaseProvider {
     'CREATE TABLE Game (id INTEGER primary key autoincrement, numberOfPlayers INTEGER, createAt TEXT)',
     'CREATE TABLE GameDetail (id INTEGER primary key autoincrement, gameIndex INTERGER, score INTEGER, gameId INTEGER, playerId INTEGER, FOREIGN KEY(gameId) REFERENCES Game(id) on delete cascade, FOREIGN KEY(playerId) REFERENCES Player(id) on delete cascade)',
   ];
+
+  static const _createRoomSyncQueueScript = '''
+    CREATE TABLE RoomSyncQueue (
+      roomCode TEXT PRIMARY KEY,
+      gameId INTEGER NOT NULL,
+      payload TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    )
+  ''';
 
   Future<Database?> get database async {
     _database ??= await _getDatabaseInstance();
@@ -50,9 +59,13 @@ class DatabaseProvider {
           await db.execute(script);
         }
         await db.execute('ALTER TABLE GameDetail ADD COLUMN editedAt TEXT');
+        await db.execute(_createRoomSyncQueueScript);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         await _ensureEditedAtColumn(db);
+        if (oldVersion < 6) {
+          await db.execute(_createRoomSyncQueueScript);
+        }
       },
       onConfigure: _onConfigure,
     );
@@ -289,4 +302,65 @@ class DatabaseProvider {
       whereArgs: [detailId],
     );
   }
+
+  Future<void> enqueueRoomSnapshot({
+    required String roomCode,
+    required int gameId,
+    required String payload,
+  }) async {
+    final db = await database;
+    await db!.insert('RoomSyncQueue', {
+      'roomCode': roomCode,
+      'gameId': gameId,
+      'payload': payload,
+      'updatedAt': DateTime.now().toUtc().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<RoomSyncSnapshot>> getPendingRoomSnapshots() async {
+    final db = await database;
+    final rows = await db!.query('RoomSyncQueue', orderBy: 'updatedAt ASC');
+    return rows
+        .map(
+          (row) => RoomSyncSnapshot(
+            roomCode: row['roomCode'] as String,
+            gameId: row['gameId'] as int,
+            payload: row['payload'] as String,
+            updatedAt: row['updatedAt'] as String,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<void> removePendingRoomSnapshot(RoomSyncSnapshot snapshot) async {
+    final db = await database;
+    await db!.delete(
+      'RoomSyncQueue',
+      where: 'roomCode = ? AND payload = ?',
+      whereArgs: [snapshot.roomCode, snapshot.payload],
+    );
+  }
+
+  Future<void> removePendingRoomSnapshots(String roomCode) async {
+    final db = await database;
+    await db!.delete(
+      'RoomSyncQueue',
+      where: 'roomCode = ?',
+      whereArgs: [roomCode],
+    );
+  }
+}
+
+class RoomSyncSnapshot {
+  const RoomSyncSnapshot({
+    required this.roomCode,
+    required this.gameId,
+    required this.payload,
+    required this.updatedAt,
+  });
+
+  final String roomCode;
+  final int gameId;
+  final String payload;
+  final String updatedAt;
 }

@@ -1,0 +1,30 @@
+{
+    "rules": {
+        "rooms": {
+            "$roomCode": {
+                "public": {
+                    ".read": "auth != null && (data.child('hostId').val() == auth.uid || root.child('rooms').child($roomCode).child('kicked').child(auth.uid).val() != true)",
+                    ".write": "auth != null && ((!data.exists() && newData.child('hostId').val() == auth.uid) || (data.child('hostId').val() == auth.uid && (newData.child('status').val() == 'closed' || (data.child('status').val() == 'active' && data.child('expiresAt').val() > now && newData.child('status').val() == 'active'))))"
+                },
+                "viewers": {
+                    ".read": "auth != null && root.child('rooms').child($roomCode).child('public').child('hostId').val() == auth.uid",
+                    "$viewerId": {
+                        ".read": "auth != null && ($viewerId == auth.uid || root.child('rooms').child($roomCode).child('public').child('hostId').val() == auth.uid)",
+                        ".write": "auth != null && (root.child('rooms').child($roomCode).child('public').child('hostId').val() == auth.uid || ($viewerId == auth.uid && root.child('rooms').child($roomCode).child('kicked').child(auth.uid).val() != true))"
+                    }
+                },
+                "kicked": {
+                    "$viewerId": {
+                        ".write": "auth != null && root.child('rooms').child($roomCode).child('public').child('hostId').val() == auth.uid"
+                    }
+                },
+                "slots": {
+                    "$slotId": {
+                        ".read": "auth != null",
+                        ".write": "auth != null && ((newData.val() == auth.uid && (!data.exists() || data.val() == auth.uid) && root.child('rooms').child($roomCode).child('public').child('status').val() == 'active' && root.child('rooms').child($roomCode).child('public').child('expiresAt').val() > now && root.child('rooms').child($roomCode).child('kicked').child(auth.uid).val() != true) || (data.val() == auth.uid && !newData.exists()) || (root.child('rooms').child($roomCode).child('public').child('hostId').val() == auth.uid && !newData.exists()) || (!data.exists() && !newData.exists()))"
+                    }
+                }
+            }
+        }
+    }
+}

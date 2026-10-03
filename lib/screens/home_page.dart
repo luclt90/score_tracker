@@ -6,6 +6,7 @@ import 'package:score_tracker/models/game_detail_state_model.dart';
 import 'package:score_tracker/models/game_state_model.dart';
 import 'package:score_tracker/navigation.dart';
 import 'package:score_tracker/screens/select_player.dart';
+import 'package:score_tracker/screens/join_room_screen.dart';
 import 'package:score_tracker/screens/settings_page.dart';
 import 'package:score_tracker/services/iap_service.dart';
 import 'package:score_tracker/widgets/game_card_item.dart';
@@ -98,6 +99,14 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     actions: [
+                      IconButton(
+                        tooltip: 'Tham gia phòng',
+                        onPressed: () => Navigator.push(
+                          context,
+                          smoothPageRoute(const JoinRoomScreen()),
+                        ),
+                        icon: const Icon(Icons.qr_code_scanner_rounded),
+                      ),
                       IconButton(
                         tooltip: MaterialLocalizations.of(context)
                             .refreshIndicatorSemanticLabel,
